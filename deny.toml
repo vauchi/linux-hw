@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# cargo-deny configuration for vauchi-hardware (linux-hw)
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "GPL-3.0-or-later",
+    "AGPL-3.0-or-later",  # vauchi-core, vauchi-relay (#801)
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",  # webpki-roots (Mozilla CA certs)
+    "OpenSSL",              # aws-lc-sys (BoringSSL fork, FIPS 140-3)
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"  # git deps (vauchi-contract) have no version spec
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+
+# Deny specific crates known to be problematic
+deny = [
+    # Prefer rustls over OpenSSL for pure-Rust TLS and simpler cross-compilation.
+    # If a platform feature genuinely requires native-tls, add it as an explicit
+    # wrapper here and document the rationale.
+    { name = "openssl" },
+    { name = "openssl-sys" },
+]
+
+# Allow specific duplicates that are common and unavoidable
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://gitlab.com/vauchi/contract.git"]
