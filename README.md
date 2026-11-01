@@ -12,13 +12,18 @@ the user sees.
 
 It serves the GTK, Qt, CLI and TUI apps.
 
-## Contents (planned)
+## Contents
 
-- one port per hardware capability: BLE, NFC, camera, audio, direct send
-- contract tests against Core's command/event fixtures, run on a fake OS
-  backend in CI
-- real-device tests, a capability probe, measurement tools and
-  diagnostics
+The crate `vauchi-linux-hw` (ADR-078 step 2.1; it was Core's
+`vauchi-hardware`): the BlueZ discovery and delivery ports over D-Bus,
+the host executor that runs them, and a fake BlueZ backend (`fake-bluez`
+feature) for the tests CI runs without radios. It depends on the shell
+contract (`vauchi-contract`) and on nothing from Core.
+
+Planned next: PC/SC NFC, PipeWire camera capture with a preview stream,
+audio proximity, mDNS/TCP direct send; contract tests against the
+command/event fixtures; real-device tests, a capability probe,
+measurement tools and diagnostics.
 
 ## License
 

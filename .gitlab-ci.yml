@@ -27,14 +27,40 @@ default:
 
 include:
   - project: 'vauchi/scripts'
-    ref: ci-templates-v2026.10.11
+    ref: ci-templates-v2026.10.31
     file:
       - '/ci-templates/lint-docs.yml'
       - '/ci-templates/mr-rules.yml'
       - '/ci-templates/reuse.yml'
+      - '/ci-templates/rust-base.yml'
+      - '/ci-templates/timeouts.yml'
 
 variables:
-  VAUCHI_SCRIPTS_REF: "ci-templates-v2026.10.11"
+  VAUCHI_SCRIPTS_REF: "ci-templates-v2026.10.31"
 
 stages:
   - lint
+  - test
+
+# The Rust hardware shell (ADR-077): format, clippy and the tests with the
+# fake BlueZ backend on every MR and on main. The real BlueZ, PC/SC and
+# PipeWire paths are proven on the rig, not on a runner without radios.
+lint:format:
+  extends: [.rust-runner-nocache, .lint-format, .mr-or-main, .timeout-quick]
+  needs: []
+
+lint:clippy:
+  extends: [.rust-runner-readonly, .mr-or-main, .timeout-standard]
+  stage: lint
+  needs: []
+  script:
+    - cargo clippy --all-targets --features fake-bluez -- -D warnings
+
+test:unit:
+  extends: [.rust-runner, .mr-or-main, .timeout-standard]
+  stage: test
+  needs:
+    - job: lint:format
+      optional: true
+  script:
+    - cargo test --features fake-bluez
