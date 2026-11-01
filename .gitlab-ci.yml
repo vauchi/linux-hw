@@ -33,6 +33,7 @@ include:
       - '/ci-templates/mr-rules.yml'
       - '/ci-templates/reuse.yml'
       - '/ci-templates/rust-base.yml'
+      - '/ci-templates/security.yml'
       - '/ci-templates/timeouts.yml'
 
 variables:
@@ -64,3 +65,13 @@ test:unit:
       optional: true
   script:
     - cargo test --features fake-bluez
+
+# cargo-deny on MRs; cargo-vet on MRs that change dependencies and on
+# main, both against the committed lockfile. Exemptions only, never
+# local audits (VSC01): a dependency change commits its regenerated
+# exemptions with it.
+security:deny:
+  extends: [.rust-runner-readonly, .security-deny-job]
+
+security:vet:
+  extends: [.rust-runner-readonly, .security-vet-job]
