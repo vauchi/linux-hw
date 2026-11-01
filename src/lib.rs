@@ -7,6 +7,7 @@
 mod bluez;
 mod delivery;
 mod discovery;
+mod executor;
 #[cfg(all(target_os = "linux", feature = "fake-bluez"))]
 pub mod fake_bluez;
 mod host;
