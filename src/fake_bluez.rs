@@ -9,6 +9,8 @@
 //! unexpected bus traffic. Shared so that every host of `BlueZDiscovery` (this
 //! crate's tests, GTK, later Qt and the terminals) runs against one fake.
 
+mod central;
+
 use futures_util::StreamExt;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -31,12 +33,27 @@ pub enum Call {
     },
     StartDiscovery,
     StopDiscovery,
+    /// The GATT service UUID and each characteristic's UUID and flags, sorted
+    /// by UUID, as read back from the registered application.
+    RegisterApplication {
+        service: String,
+        characteristics: Vec<(String, Vec<String>)>,
+    },
+    /// The advertisement as read back on registration; `other_properties`
+    /// names every property besides `Type` and `ServiceUUIDs`.
+    RegisterAdvertisement {
+        kind: String,
+        service_uuids: Vec<String>,
+        other_properties: Vec<String>,
+    },
 }
 
 pub struct Script {
     pub owns_name: bool,
     pub adapter_powered: Option<bool>,
     pub start_error: Option<&'static str>,
+    /// Refuses `RegisterApplication` with this D-Bus error name.
+    pub register_error: Option<&'static str>,
 }
 
 impl Default for Script {
@@ -45,6 +62,7 @@ impl Default for Script {
             owns_name: true,
             adapter_powered: Some(true),
             start_error: None,
+            register_error: None,
         }
     }
 }
@@ -57,6 +75,8 @@ pub struct FakeBlueZ {
     scanner: mpsc::UnboundedReceiver<String>,
     gone: MessageStream,
     responder: JoinHandle<()>,
+    apps: mpsc::UnboundedReceiver<central::App>,
+    app: Option<central::App>,
 }
 
 impl FakeBlueZ {
@@ -98,7 +118,16 @@ impl FakeBlueZ {
         .unwrap();
         let (calls_tx, calls) = mpsc::unbounded_channel();
         let (scanner_tx, scanner) = mpsc::unbounded_channel();
-        let responder = tokio::spawn(respond(bluez.clone(), script, calls_tx, scanner_tx));
+        let (apps_tx, apps) = mpsc::unbounded_channel();
+        let responder = tokio::spawn(respond(
+            bluez.clone(),
+            script,
+            Peers {
+                calls: calls_tx,
+                scanner: scanner_tx,
+                apps: apps_tx,
+            },
+        ));
         Self {
             daemon,
             socket,
@@ -107,6 +136,8 @@ impl FakeBlueZ {
             scanner,
             gone,
             responder,
+            apps,
+            app: None,
         }
     }
 
@@ -207,16 +238,26 @@ fn objects(script: &Script) -> Objects {
     let adapter = HashMap::from([("Powered".into(), Variant::from(powered).try_into().unwrap())]);
     HashMap::from([(
         ObjectPath::try_from(ADAPTER).unwrap().into(),
-        HashMap::from([("org.bluez.Adapter1".into(), adapter)]),
+        HashMap::from([
+            ("org.bluez.Adapter1".into(), adapter),
+            ("org.bluez.GattManager1".into(), Properties::new()),
+            ("org.bluez.LEAdvertisingManager1".into(), Properties::new()),
+        ]),
     )])
 }
 
-async fn respond(
-    bluez: Connection,
-    script: Script,
+struct Peers {
     calls: mpsc::UnboundedSender<Call>,
     scanner: mpsc::UnboundedSender<String>,
-) {
+    apps: mpsc::UnboundedSender<central::App>,
+}
+
+async fn respond(bluez: Connection, script: Script, peers: Peers) {
+    let Peers {
+        calls,
+        scanner,
+        apps,
+    } = peers;
     let mut incoming = MessageStream::from(&bluez);
     while let Some(Ok(message)) = incoming.next().await {
         let header = message.header();
@@ -248,6 +289,47 @@ async fn respond(
             (ADAPTER, "StopDiscovery") => {
                 calls.send(Call::StopDiscovery).unwrap();
                 bluez.reply(&header, &()).await
+            }
+            // bluetoothd answers a registration only after reading the
+            // objects back, which the registrant serves meanwhile.
+            (ADAPTER, "RegisterApplication") => {
+                let (bluez, calls, apps) = (bluez.clone(), calls.clone(), apps.clone());
+                let refusal = script.register_error;
+                let message = message.clone();
+                tokio::spawn(async move {
+                    let header = message.header();
+                    let (root, _): (OwnedObjectPath, Properties) =
+                        message.body().deserialize().unwrap();
+                    let owner = header.sender().unwrap().to_string();
+                    let (app, call) = central::read_application(&bluez, &owner, &root).await;
+                    calls.send(call).unwrap();
+                    apps.send(app).unwrap();
+                    match refusal {
+                        Some(error) => bluez.reply_error(&header, error, &"scripted").await,
+                        None => bluez.reply(&header, &()).await,
+                    }
+                    .unwrap();
+                });
+                Ok(())
+            }
+            (ADAPTER, "RegisterAdvertisement") => {
+                let (bluez, calls) = (bluez.clone(), calls.clone());
+                let message = message.clone();
+                tokio::spawn(async move {
+                    let header = message.header();
+                    let (path, _): (OwnedObjectPath, Properties) =
+                        message.body().deserialize().unwrap();
+                    let owner = header.sender().unwrap().to_string();
+                    calls
+                        .send(central::read_advertisement(&bluez, &owner, &path).await)
+                        .unwrap();
+                    bluez.reply(&header, &()).await.unwrap();
+                });
+                Ok(())
+            }
+            (device, "Get") if device.starts_with(&format!("{ADAPTER}/dev_")) => {
+                let address = device[ADAPTER.len() + 5..].replace('_', ":");
+                bluez.reply(&header, &Variant::from(address)).await
             }
             _ => {
                 bluez
