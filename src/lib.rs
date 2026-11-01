@@ -3,6 +3,7 @@
 
 #![forbid(unsafe_code)]
 
+mod advertising;
 #[cfg(target_os = "linux")]
 mod bluez;
 mod delivery;
@@ -14,9 +15,10 @@ mod host;
 mod ports;
 mod worker;
 
+pub use advertising::BleAdvertiser;
 #[cfg(target_os = "linux")]
-pub use bluez::BlueZDiscovery;
+pub use bluez::{BlueZAdvertising, BlueZDiscovery};
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
-pub use ports::{Discovery, ExecutorError, HardwareFailure};
+pub use ports::{Advertising, Discovery, ExecutorError, HardwareFailure, Notification, Outbound};

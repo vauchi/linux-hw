@@ -55,14 +55,21 @@ const PAYLOAD: [u8; 4] = [0xab, 0xcd, 0x01, 0x02];
 const TOKEN: &str = "0000abcd-0000-1000-8000-00805f9b34fb";
 const CENTRAL: &str = "AA:BB:CC:DD:EE:02";
 
+/// Room for one full attribute value (512 bytes) as an event.
+const EVENT_BYTES: usize = 4096;
+
 fn advertiser(bluez: &FakeBlueZ) -> BleAdvertiser {
+    advertiser_with(bluez, EVENT_BYTES)
+}
+
+fn advertiser_with(bluez: &FakeBlueZ, event_bytes: usize) -> BleAdvertiser {
     BleAdvertiser::with_backend(
         Arc::new(BlueZAdvertising::at(bluez.socket())),
         tokio::runtime::Handle::current(),
         InboxLimits {
             operations: NonZeroUsize::new(1).unwrap(),
             events: NonZeroUsize::new(4).unwrap(),
-            event_bytes: NonZeroUsize::new(1024).unwrap(),
+            event_bytes: NonZeroUsize::new(event_bytes).unwrap(),
         },
     )
     .unwrap()
@@ -179,6 +186,25 @@ async fn a_write_longer_than_an_attribute_value_is_refused_and_not_reported() {
     assert_eq!(
         advertiser.next_event().await,
         Some(inbound(HANDSHAKE_WRITE, &[8; 512]))
+    );
+    advertiser.shutdown().await.unwrap();
+}
+
+// @internal
+#[tokio::test]
+async fn a_write_the_event_budget_cannot_hold_is_reported_not_dropped() {
+    let mut bluez = start(Script::default()).await;
+    let mut advertiser = advertiser_with(&bluez, 1024);
+    advertiser.start(SERVICE.into(), PAYLOAD.to_vec()).unwrap();
+    bluez.calls.recv().await;
+    bluez.calls.recv().await;
+    bluez.write(CENTRAL, DATA_WRITE, &[200; 512]).await.unwrap();
+    assert_eq!(
+        advertiser.next_event().await,
+        Some(Event::HardwareError {
+            transport: "BLE".into(),
+            error: "Bluetooth observation exceeds executor limits".into(),
+        })
     );
     advertiser.shutdown().await.unwrap();
 }

@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod peripheral;
+
+pub use peripheral::BlueZAdvertising;
+
 use crate::delivery::EventSender;
 use crate::ports::{Discovery, HardwareFailure};
 use futures_util::StreamExt;
@@ -61,7 +65,7 @@ impl Discovery for BlueZDiscovery {
     }
 }
 
-struct ScanConnection {
+struct BusConnection {
     connection: Connection,
     _lease: SocketLease,
 }
@@ -76,7 +80,7 @@ impl Drop for SocketLease {
     }
 }
 
-impl ScanConnection {
+impl BusConnection {
     async fn open(bus: &Path) -> Result<Self, HardwareFailure> {
         let socket = tokio::net::UnixStream::connect(bus)
             .await
@@ -101,7 +105,7 @@ async fn scan(
     mut events: EventSender,
 ) -> Result<(), HardwareFailure> {
     let service = Uuid::parse_str(&service_uuid).map_err(|_| HardwareFailure::Failed)?;
-    let scan = ScanConnection::open(bus).await?;
+    let scan = BusConnection::open(bus).await?;
     let bus = &scan.connection;
     let mut signals = subscribe(bus).await?;
     let objects: Objects = call(bus, "/", OBJECT_MANAGER, "GetManagedObjects", &())

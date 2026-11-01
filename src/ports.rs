@@ -11,6 +11,7 @@ pub enum HardwareFailure {
     Unavailable,
     PermissionDenied,
     Failed,
+    AdvertisingFailed,
     InvalidObservation,
 }
 
@@ -23,14 +24,17 @@ impl HardwareFailure {
             Self::PermissionDenied => Event::PermissionDenied {
                 transport: "BLE".into(),
             },
-            Self::Failed | Self::InvalidObservation => Event::HardwareError {
-                transport: "BLE".into(),
-                error: match self {
-                    Self::InvalidObservation => "Bluetooth observation exceeds executor limits",
-                    _ => "Bluetooth discovery failed",
+            Self::Failed | Self::AdvertisingFailed | Self::InvalidObservation => {
+                Event::HardwareError {
+                    transport: "BLE".into(),
+                    error: match self {
+                        Self::InvalidObservation => "Bluetooth observation exceeds executor limits",
+                        Self::AdvertisingFailed => "Bluetooth advertising failed",
+                        _ => "Bluetooth discovery failed",
+                    }
+                    .into(),
                 }
-                .into(),
-            },
+            }
         }
     }
 }
@@ -41,6 +45,38 @@ pub enum ExecutorError {
     EventBudgetTooSmall,
     #[error("native discovery worker failed")]
     WorkerFailed,
+}
+
+/// A value Core writes on the inbound link (`BleWriteCharacteristic` with
+/// `BleLinkDirection::Inbound`), sent to the centrals as a notification.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Notification {
+    pub device_id: String,
+    pub uuid: String,
+    pub data: Vec<u8>,
+}
+
+/// The notifications Core sends while one advertisement runs; `None` once
+/// the host stopped it.
+pub struct Outbound(pub(crate) tokio::sync::mpsc::Receiver<Notification>);
+
+impl Outbound {
+    pub async fn next(&mut self) -> Option<Notification> {
+        self.0.recv().await
+    }
+}
+
+/// OS peripheral port: advertise, serve the exchange's GATT service, and
+/// report what centrals do with it. Dropping the returned future withdraws
+/// both the advertisement and the service.
+pub trait Advertising: Send + Sync + 'static {
+    fn advertise(
+        &self,
+        service_uuid: String,
+        payload: Vec<u8>,
+        outbound: Outbound,
+        events: EventSender,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HardwareFailure>> + Send + '_>>;
 }
 
 /// OS discovery port. Implementations bound capture buffers before constructing
