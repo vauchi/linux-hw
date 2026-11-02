@@ -14,7 +14,7 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 # Git and editor config files
 [[annotations]]
-path = [".gitignore", "**/.gitignore", "**/.gitkeep"]
+path = [".gitignore", "**/.gitignore", "**/.gitkeep", ".markdownlintignore"]
 SPDX-FileCopyrightText = "2026 Mattia Egloff <mattia.egloff@pm.me>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
