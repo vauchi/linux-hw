@@ -27,7 +27,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pcsc = { version = "2", optional = true }
-cpal = { version = "0.15", optional = true }
+alsa = { version = "0.9", optional = true }
 nokhwa = { version = "0.10", features = ["input-v4l"], optional = true }
 zbus = { version = "=6.0.0", default-features = false, features = ["tokio"] }
 uuid = { version = "1", default-features = false }
@@ -39,8 +39,9 @@ tokio = { version = "1", features = ["net"] }
 fake-bluez = []
 # The PC/SC reader behind the NFC port (USB NFC readers through pcsclite).
 nfc = ["dep:pcsc"]
-# The cpal devices behind the audio port (ultrasonic proximity).
-audio = ["dep:cpal"]
+# The ALSA devices behind the audio port (ultrasonic proximity); PipeWire and
+# PulseAudio hosts serve it through their ALSA layer.
+audio = ["dep:alsa"]
 # QR decoding from luma frames (moved from Core, owner Q1/Q3 2026-11-02).
 qr-decode = ["dep:rqrr", "dep:rxing", "dep:image", "dep:serde"]
 # The V4L2 camera through nokhwa behind the camera port; scans need the decoder.

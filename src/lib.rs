@@ -4,13 +4,13 @@
 #![forbid(unsafe_code)]
 
 mod advertising;
+#[cfg(feature = "audio")]
+mod alsa_audio;
 mod audio;
 #[cfg(target_os = "linux")]
 mod bluez;
 #[cfg(feature = "qr-decode")]
 mod camera;
-#[cfg(feature = "audio")]
-mod cpal_audio;
 mod delivery;
 mod discovery;
 mod executor;
@@ -29,13 +29,13 @@ pub mod qr;
 mod worker;
 
 pub use advertising::BleAdvertiser;
+#[cfg(feature = "audio")]
+pub use alsa_audio::AlsaAudio;
 pub use audio::AudioSession;
 #[cfg(target_os = "linux")]
 pub use bluez::{BlueZAdvertising, BlueZDiscovery};
 #[cfg(feature = "qr-decode")]
 pub use camera::{CameraSession, rgb_to_luma};
-#[cfg(feature = "audio")]
-pub use cpal_audio::CpalAudio;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
