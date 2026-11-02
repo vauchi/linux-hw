@@ -28,6 +28,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 pcsc = { version = "2", optional = true }
 cpal = { version = "0.15", optional = true }
+nokhwa = { version = "0.10", features = ["input-v4l"], optional = true }
 zbus = { version = "=6.0.0", default-features = false, features = ["tokio"] }
 uuid = { version = "1", default-features = false }
 tokio = { version = "1", features = ["net"] }
@@ -42,6 +43,8 @@ nfc = ["dep:pcsc"]
 audio = ["dep:cpal"]
 # QR decoding from luma frames (moved from Core, owner Q1/Q3 2026-11-02).
 qr-decode = ["dep:rqrr", "dep:rxing", "dep:image", "dep:serde"]
+# The V4L2 camera through nokhwa behind the camera port; scans need the decoder.
+camera = ["qr-decode", "dep:nokhwa"]
 
 [dev-dependencies]
 tempfile = "3"

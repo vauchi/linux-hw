@@ -122,3 +122,27 @@ pub trait AudioBackend: Send + Sync + 'static {
         cancelled: &std::sync::atomic::AtomicBool,
     ) -> Result<(Vec<f32>, u32), String>;
 }
+
+/// One camera frame as the 8-bit Y plane the decoder reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LumaFrame {
+    pub luma: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// An open camera stream: blocks for the next frame, `None` once the
+/// stream ends. A live camera ends only when `cancelled` is set. Opened
+/// and read on one blocking thread, so it need not be `Send` (V4L2
+/// handles are not).
+pub trait CameraFrames {
+    fn next_luma(&mut self) -> Result<Option<LumaFrame>, String>;
+}
+
+/// The camera port: opens the device's stream, or names why it cannot.
+pub trait CameraBackend: Send + Sync + 'static {
+    fn open(
+        &self,
+        cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<Box<dyn CameraFrames>, String>;
+}

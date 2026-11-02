@@ -7,6 +7,8 @@ mod advertising;
 mod audio;
 #[cfg(target_os = "linux")]
 mod bluez;
+#[cfg(feature = "qr-decode")]
+mod camera;
 #[cfg(feature = "audio")]
 mod cpal_audio;
 mod delivery;
@@ -16,6 +18,8 @@ mod executor;
 pub mod fake_bluez;
 mod host;
 mod nfc;
+#[cfg(feature = "camera")]
+mod nokhwa_camera;
 #[cfg(feature = "nfc")]
 mod pcsc;
 mod ports;
@@ -28,15 +32,19 @@ pub use advertising::BleAdvertiser;
 pub use audio::AudioSession;
 #[cfg(target_os = "linux")]
 pub use bluez::{BlueZAdvertising, BlueZDiscovery};
+#[cfg(feature = "qr-decode")]
+pub use camera::{CameraSession, rgb_to_luma};
 #[cfg(feature = "audio")]
 pub use cpal_audio::CpalAudio;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
 pub use nfc::{NfcSession, ReaderSession};
+#[cfg(feature = "camera")]
+pub use nokhwa_camera::NokhwaCamera;
 #[cfg(feature = "nfc")]
 pub use pcsc::PcscReader;
 pub use ports::{
-    Advertising, AudioBackend, Discovery, ExecutorError, HardwareFailure, NfcCard, NfcReader,
-    Notification, Outbound,
+    Advertising, AudioBackend, CameraBackend, CameraFrames, Discovery, ExecutorError,
+    HardwareFailure, LumaFrame, NfcCard, NfcReader, Notification, Outbound,
 };
