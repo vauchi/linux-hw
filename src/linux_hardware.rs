@@ -70,6 +70,7 @@ impl Backends {
         if claimed.has_ble {
             backends.discovery = Some(Arc::new(crate::bluez::BlueZDiscovery::system()));
             backends.advertising = Some(Arc::new(crate::bluez::BlueZAdvertising::system()));
+            backends.central = Some(Arc::new(crate::bluez::BlueZCentral::system()));
         }
         #[cfg(feature = "nfc")]
         if claimed.has_nfc {

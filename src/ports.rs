@@ -12,6 +12,7 @@ pub enum HardwareFailure {
     PermissionDenied,
     Failed,
     AdvertisingFailed,
+    LinkFailed,
     InvalidObservation,
 }
 
@@ -24,17 +25,19 @@ impl HardwareFailure {
             Self::PermissionDenied => Event::PermissionDenied {
                 transport: "BLE".into(),
             },
-            Self::Failed | Self::AdvertisingFailed | Self::InvalidObservation => {
-                Event::HardwareError {
-                    transport: "BLE".into(),
-                    error: match self {
-                        Self::InvalidObservation => "Bluetooth observation exceeds executor limits",
-                        Self::AdvertisingFailed => "Bluetooth advertising failed",
-                        _ => "Bluetooth discovery failed",
-                    }
-                    .into(),
+            Self::Failed
+            | Self::AdvertisingFailed
+            | Self::LinkFailed
+            | Self::InvalidObservation => Event::HardwareError {
+                transport: "BLE".into(),
+                error: match self {
+                    Self::InvalidObservation => "Bluetooth observation exceeds executor limits",
+                    Self::AdvertisingFailed => "Bluetooth advertising failed",
+                    Self::LinkFailed => "Bluetooth link failed",
+                    _ => "Bluetooth discovery failed",
                 }
-            }
+                .into(),
+            },
         }
     }
 }

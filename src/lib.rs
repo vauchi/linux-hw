@@ -37,7 +37,7 @@ pub use advertising::BleAdvertiser;
 pub use alsa_audio::AlsaAudio;
 pub use audio::AudioSession;
 #[cfg(target_os = "linux")]
-pub use bluez::{BlueZAdvertising, BlueZDiscovery};
+pub use bluez::{BlueZAdvertising, BlueZCentral, BlueZDiscovery};
 #[cfg(feature = "qr-decode")]
 pub use camera::{CameraSession, rgb_to_luma};
 pub use capabilities::HostDevices;

@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod central;
 mod peripheral;
 
+pub use central::BlueZCentral;
 pub use peripheral::BlueZAdvertising;
 
 use crate::delivery::EventSender;
