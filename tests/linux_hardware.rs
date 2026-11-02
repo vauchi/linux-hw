@@ -9,10 +9,59 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::mpsc;
 use vauchi_contract::exchange_types::{DeviceCapabilities, Platform};
-use vauchi_contract::{BleAdvertisementObservation, BleServiceUuid, Command, Event};
-use vauchi_linux_hw::{
-    Backends, Discovery, EventSender, ExecuteError, HardwareFailure, HostDevices, LinuxHardware,
+use vauchi_contract::{
+    BleAdvertisementObservation, BleLinkDirection, BleServiceUuid, Command, Event,
 };
+use vauchi_linux_hw::{
+    Advertising, Backends, Discovery, EventSender, ExecuteError, HardwareFailure, HostDevices,
+    LinuxHardware, Outbound,
+};
+
+/// The longest attribute value ATT carries, every byte at its widest in JSON.
+fn largest_write() -> Event {
+    Event::BleCharacteristicNotified {
+        device_id: "AA:BB:CC:DD:EE:FF".into(),
+        direction: BleLinkDirection::Inbound,
+        uuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567892".into(),
+        data: vec![255; 512],
+    }
+}
+
+struct CentralWritesTheLargestValue;
+
+impl Advertising for CentralWritesTheLargestValue {
+    fn advertise(
+        &self,
+        _: String,
+        _: Vec<u8>,
+        _: Outbound,
+        mut events: EventSender,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HardwareFailure>> + Send + '_>> {
+        Box::pin(async move {
+            events.send(largest_write()).await.unwrap();
+            std::future::pending().await
+        })
+    }
+}
+
+// @internal
+#[test]
+fn a_central_writing_the_largest_attribute_value_reaches_core_whole() {
+    let backends = Backends {
+        advertising: Some(Arc::new(CentralWritesTheLargestValue)),
+        ..Backends::default()
+    };
+    let mut hardware = LinuxHardware::with_backends(backends, bluetooth_only()).unwrap();
+
+    hardware
+        .execute(Command::BleStartAdvertising {
+            service_uuid: "core-service".into(),
+            payload: vec![1, 2],
+        })
+        .unwrap();
+
+    assert_eq!(next_event(&mut hardware), largest_write());
+}
 
 struct Released(mpsc::Sender<&'static str>);
 
