@@ -122,10 +122,10 @@ async fn scan(
             devices.update(path, properties);
         }
     }
-    let filter = HashMap::from([
-        ("UUIDs", zbus::Variant::from(vec![service.to_string()])),
-        ("Transport", zbus::Variant::from("le")),
-    ]);
+    // No UUIDs entry: with one, BlueZ reported none of the rig phones
+    // advertising the service (private#770, rig 2026-11-02); `observe`
+    // checks the service instead.
+    let filter = HashMap::from([("Transport", zbus::Variant::from("le"))]);
     call(
         bus,
         adapter.as_str(),
