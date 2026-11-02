@@ -172,9 +172,11 @@ async fn report_error(events: EventSender, error: String) -> Result<(), Hardware
 /// Pack an RGB frame into the 8-bit Y plane the decoder expects: BT.601
 /// luma weights, integer arithmetic to stay allocation-free per pixel.
 pub fn rgb_to_luma(rgb: &[u8]) -> Vec<u8> {
-    rgb.chunks_exact(3)
-        .map(|p| {
-            let (r, g, b) = (u32::from(p[0]), u32::from(p[1]), u32::from(p[2]));
+    let (pixels, _) = rgb.as_chunks::<3>();
+    pixels
+        .iter()
+        .map(|&[r, g, b]| {
+            let (r, g, b) = (u32::from(r), u32::from(g), u32::from(b));
             ((r * 299 + g * 587 + b * 114) / 1000) as u8
         })
         .collect()
