@@ -148,6 +148,43 @@ impl HardwareShell {
         (0..SOURCES).find_map(|offset| self.pop_source((first + offset) % SOURCES))
     }
 
+    /// Wait for the next observation from any session; `None` once no
+    /// session can report any more. Each session's wait gives up nothing
+    /// when another wins the race, so none of its events is lost.
+    pub async fn next_event(&mut self) -> Option<Event> {
+        if let Some(event) = self.pop() {
+            return Some(event);
+        }
+        let Self {
+            scanner,
+            advertiser,
+            central,
+            nfc,
+            audio,
+            #[cfg(feature = "qr-decode")]
+            camera,
+            ..
+        } = self;
+        #[cfg(feature = "qr-decode")]
+        let camera = async {
+            match camera {
+                Some(camera) => camera.next_event().await,
+                None => None,
+            }
+        };
+        #[cfg(not(feature = "qr-decode"))]
+        let camera = async { None::<Event> };
+        tokio::select! {
+            Some(event) = async { scanner.as_mut()?.next_event().await } => Some(event),
+            Some(event) = async { advertiser.as_mut()?.next_event().await } => Some(event),
+            Some(event) = async { central.as_mut()?.next_event().await } => Some(event),
+            Some(event) = async { nfc.as_mut()?.next_event().await } => Some(event),
+            Some(event) = async { audio.as_mut()?.next_event().await } => Some(event),
+            Some(event) = camera => Some(event),
+            else => None,
+        }
+    }
+
     /// Withdraw every running operation and wait until each session has
     /// dropped its native work.
     pub async fn shutdown(&mut self) -> Result<(), ExecutorError> {

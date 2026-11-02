@@ -131,6 +131,15 @@ impl LinuxHardware {
     pub fn pop(&mut self) -> Option<Event> {
         self.shell.pop()
     }
+
+    /// Block until any session reports, or `timeout` passes (`None`), so a
+    /// terminal can wait between typed lines or on its tick instead of
+    /// polling.
+    pub fn wait_for_event(&mut self, timeout: std::time::Duration) -> Option<Event> {
+        let next = self.shell.next_event();
+        self.runtime
+            .block_on(async { tokio::time::timeout(timeout, next).await.ok().flatten() })
+    }
 }
 
 impl Drop for LinuxHardware {

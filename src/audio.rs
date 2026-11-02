@@ -139,6 +139,15 @@ impl AudioSession {
         self.listener.pop().or_else(|| self.emitter.pop())
     }
 
+    /// Wait for the next event from either executor.
+    pub async fn next_event(&mut self) -> Option<Event> {
+        tokio::select! {
+            Some(event) = self.listener.next_event() => Some(event),
+            Some(event) = self.emitter.next_event() => Some(event),
+            else => None,
+        }
+    }
+
     pub async fn shutdown(&mut self) -> Result<(), ExecutorError> {
         self.cancel_all();
         self.emitter.shutdown().await?;
