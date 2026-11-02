@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `qr::scan_qr_from_luma` decodes with `rqrr`, whose only crash guard is
-//! the clamped `Perspective::map` of the fork in `vendor/rqrr`. The
+//! the clamped `Perspective::map` of the fork in `vauchi/utils/rqrr`. The
 //! `[patch.crates-io]` stanza redirects the registry dependency to that
-//! path; this test reads the lock file and fails the moment `rqrr`
-//! resolves from the registry again. Moved from linux-gtk, which now
+//! repository by tag; this test reads the lock file and fails the moment
+//! `rqrr` resolves from anywhere else. Moved from linux-gtk, which now
 //! reads the decoder from this crate. Record:
 //! `_private/docs/problems/done/2026-09-10-linux-gtk-unpatched-rqrr-abort-path/`.
 const LOCK: &str = include_str!("../Cargo.lock");
@@ -35,15 +35,16 @@ fn rqrr_sources() -> Vec<Option<String>> {
 
 // @scenario: exchange :: A malformed QR frame never aborts the desktop shell
 #[test]
-fn rqrr_resolves_from_the_vendored_fork_not_the_registry() {
+fn rqrr_resolves_from_the_fork_by_tag() {
     let sources = rqrr_sources();
     assert_eq!(
         sources.len(),
         1,
         "exactly one rqrr must resolve; two means the patch left a dead second entry: {sources:?}"
     );
-    assert_eq!(
-        sources[0], None,
-        "rqrr must come from vendor/rqrr (a path patch has no source line)"
+    let source = sources[0].as_deref().unwrap_or("<path>");
+    assert!(
+        source.starts_with("git+https://gitlab.com/vauchi/utils/rqrr.git?tag=v0.11.0%2Bvauchi."),
+        "rqrr must come from the fork in vauchi/utils/rqrr by tag, got: {source}"
     );
 }
