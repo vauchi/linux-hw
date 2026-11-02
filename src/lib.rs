@@ -26,6 +26,7 @@ mod ports;
 /// The QR decoder (ADR-077: decoding is hardware-shell code), behind `qr-decode`.
 #[cfg(feature = "qr-decode")]
 pub mod qr;
+mod shell;
 mod worker;
 
 pub use advertising::BleAdvertiser;
@@ -48,3 +49,4 @@ pub use ports::{
     Advertising, AudioBackend, CameraBackend, CameraFrames, Discovery, ExecutorError,
     HardwareFailure, LumaFrame, NfcCard, NfcReader, Notification, Outbound,
 };
+pub use shell::{ExecuteError, HardwareShell};
