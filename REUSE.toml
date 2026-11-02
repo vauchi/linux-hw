@@ -28,3 +28,15 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 path = ["supply-chain/config.toml", "supply-chain/audits.toml", "supply-chain/imports.lock"]
 SPDX-FileCopyrightText = "2026 Mattia Egloff <mattia.egloff@pm.me>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Camera corpus frames: image files cannot carry comments.
+[[annotations]]
+path = ["tests/fixtures/qr-camera-corpus/**"]
+SPDX-FileCopyrightText = "2026 Mattia Egloff <mattia.egloff@pm.me>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Vendored fork of rqrr (third-party; one patched function).
+[[annotations]]
+path = ["vendor/rqrr/**"]
+SPDX-FileCopyrightText = "WanzenBug <moritz@wanzenbug.xyz>"
+SPDX-License-Identifier = "(MIT OR Apache-2.0) AND ISC"

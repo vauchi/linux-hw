@@ -19,6 +19,9 @@ mod nfc;
 #[cfg(feature = "nfc")]
 mod pcsc;
 mod ports;
+/// The QR decoder (ADR-077: decoding is hardware-shell code), behind `qr-decode`.
+#[cfg(feature = "qr-decode")]
+pub mod qr;
 mod worker;
 
 pub use advertising::BleAdvertiser;

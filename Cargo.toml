@@ -18,6 +18,12 @@ vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.95
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+# The QR decoder (feature `qr-decode`): rqrr from the vendored fork below,
+# rxing as the fast first pass, image for the gray frame type.
+rqrr = { version = "0.11", optional = true }
+rxing = { version = "0.8", default-features = false, features = ["encoding_rs"], optional = true }
+image = { version = "0.25", default-features = false, optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pcsc = { version = "2", optional = true }
@@ -34,9 +40,15 @@ fake-bluez = []
 nfc = ["dep:pcsc"]
 # The cpal devices behind the audio port (ultrasonic proximity).
 audio = ["dep:cpal"]
+# QR decoding from luma frames (moved from Core, owner Q1/Q3 2026-11-02).
+qr-decode = ["dep:rqrr", "dep:rxing", "dep:image", "dep:serde"]
 
 [dev-dependencies]
 tempfile = "3"
+# The decoder tests render codes and read the camera corpus.
+qrcode = { version = "0.14", default-features = false }
+sha2 = "0.10"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # The NfcSession tests poll the inbox from the test thread, so the
 # executor's worker needs a runtime thread of its own.
 tokio = { version = "1", features = ["rt-multi-thread"] }
@@ -49,3 +61,12 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+# Vendored fork of rqrr 0.11.0, moved from Core (owner, 2026-11-02): patches
+# Perspective::map to clamp instead of abort on a near-degenerate QR
+# perspective (panic=abort makes the upstream assert uncatchable). Keeps
+# version 0.11.0; redirects the `rqrr = "0.11"` dependency above. Held
+# byte-identical to upstream but for geometry.rs (top-of-file patch marker);
+# its own tests run standalone: cargo test --manifest-path vendor/rqrr/Cargo.toml --lib
+[patch.crates-io]
+rqrr = { path = "vendor/rqrr" }

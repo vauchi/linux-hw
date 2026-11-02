@@ -55,7 +55,7 @@ lint:clippy:
   stage: lint
   needs: []
   script:
-    - cargo clippy --all-targets --features fake-bluez -- -D warnings
+    - cargo clippy --all-targets --features fake-bluez,qr-decode -- -D warnings
 
 test:unit:
   extends: [.rust-runner, .mr-or-main, .timeout-standard]
@@ -64,7 +64,7 @@ test:unit:
     - job: lint:format
       optional: true
   script:
-    - cargo test --features fake-bluez
+    - cargo test --features fake-bluez,qr-decode
 
 # cargo-deny on MRs; cargo-vet on MRs that change dependencies and on
 # main, both against the committed lockfile. Exemptions only, never
