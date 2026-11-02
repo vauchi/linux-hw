@@ -325,7 +325,10 @@ async fn respond(bluez: Connection, script: Script, peers: Peers) {
                 let filter: Properties = message.body().deserialize().unwrap();
                 calls
                     .send(Call::SetDiscoveryFilter {
-                        uuids: filter["UUIDs"].try_clone().unwrap().try_into().unwrap(),
+                        uuids: filter
+                            .get("UUIDs")
+                            .map(|uuids| uuids.try_clone().unwrap().try_into().unwrap())
+                            .unwrap_or_default(),
                         transport: filter["Transport"].try_clone().unwrap().try_into().unwrap(),
                     })
                     .unwrap();

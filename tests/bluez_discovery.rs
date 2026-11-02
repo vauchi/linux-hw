@@ -89,10 +89,13 @@ async fn scanning(script: Script) -> (Bus, BleScanner) {
     let mut bluez = start(script).await;
     let mut scanner = scanner(&bluez);
     scanner.start(SERVICE.into()).unwrap();
+    // No UUID filter: with one, BlueZ reported none of the rig phones
+    // advertising the service, which it reported without one (private#770,
+    // rig 2026-11-02). The scanner checks the service itself.
     assert_eq!(
         bluez.calls.recv().await,
         Some(Call::SetDiscoveryFilter {
-            uuids: vec![SERVICE.into()],
+            uuids: Vec::new(),
             transport: "le".into(),
         })
     );
