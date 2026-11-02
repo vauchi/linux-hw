@@ -18,7 +18,7 @@ vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.96
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
-# The QR decoder (feature `qr-decode`): rqrr from the vendored fork below,
+# The QR decoder (feature `qr-decode`): rqrr from the fork patched in below,
 # rxing as the fast first pass, image for the gray frame type.
 rqrr = { version = "0.11", optional = true }
 rxing = { version = "0.8", default-features = false, features = ["encoding_rs"], optional = true }
@@ -66,11 +66,10 @@ dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
 
-# Vendored fork of rqrr 0.11.0, moved from Core (owner, 2026-11-02): patches
-# Perspective::map to clamp instead of abort on a near-degenerate QR
-# perspective (panic=abort makes the upstream assert uncatchable). Keeps
-# version 0.11.0; redirects the `rqrr = "0.11"` dependency above. Held
-# byte-identical to upstream but for geometry.rs (top-of-file patch marker);
-# its own tests run standalone: cargo test --manifest-path vendor/rqrr/Cargo.toml --lib
+# rqrr 0.11.0 with the clamped Perspective::map (vauchi/utils/rqrr): upstream
+# aborts on a near-degenerate QR perspective, uncatchable under
+# panic = "abort". The version stays 0.11.0 so this redirects the
+# `rqrr = "0.11"` dependency above; tests/rqrr_resolves_from_the_fork.rs
+# fails the moment it resolves from anywhere else.
 [patch.crates-io]
-rqrr = { path = "vendor/rqrr" }
+rqrr = { git = "https://gitlab.com/vauchi/utils/rqrr.git", tag = "v0.11.0+vauchi.1" }
