@@ -104,3 +104,21 @@ pub trait NfcReader: Send + Sync + 'static {
         cancelled: &std::sync::atomic::AtomicBool,
     ) -> Result<Box<dyn NfcCard>, String>;
 }
+
+/// The audio port: plays Core's pre-encoded samples and records for a
+/// while, both blocking, both ending early when `cancelled` is set. The
+/// modulation lives in Core; this is a pure hardware adapter.
+pub trait AudioBackend: Send + Sync + 'static {
+    fn emit(
+        &self,
+        samples: &[f32],
+        sample_rate: u32,
+        cancelled: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), String>;
+
+    fn record(
+        &self,
+        timeout: std::time::Duration,
+        cancelled: &std::sync::atomic::AtomicBool,
+    ) -> Result<(Vec<f32>, u32), String>;
+}

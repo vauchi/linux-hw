@@ -4,8 +4,11 @@
 #![forbid(unsafe_code)]
 
 mod advertising;
+mod audio;
 #[cfg(target_os = "linux")]
 mod bluez;
+#[cfg(feature = "audio")]
+mod cpal_audio;
 mod delivery;
 mod discovery;
 mod executor;
@@ -19,8 +22,11 @@ mod ports;
 mod worker;
 
 pub use advertising::BleAdvertiser;
+pub use audio::AudioSession;
 #[cfg(target_os = "linux")]
 pub use bluez::{BlueZAdvertising, BlueZDiscovery};
+#[cfg(feature = "audio")]
+pub use cpal_audio::CpalAudio;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
@@ -28,6 +34,6 @@ pub use nfc::{NfcSession, ReaderSession};
 #[cfg(feature = "nfc")]
 pub use pcsc::PcscReader;
 pub use ports::{
-    Advertising, Discovery, ExecutorError, HardwareFailure, NfcCard, NfcReader, Notification,
-    Outbound,
+    Advertising, AudioBackend, Discovery, ExecutorError, HardwareFailure, NfcCard, NfcReader,
+    Notification, Outbound,
 };
