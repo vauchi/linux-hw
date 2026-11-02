@@ -58,6 +58,7 @@ const SELECT: &[u8] = &[0x00, 0xA4, 0x04, 0x00, 0x01, 0xF0];
 const EXCHANGE: &[u8] = &[0x00, 0xE0, 0x00, 0x00, 0x01, 0x2A];
 const CARD_SEND: &[u8] = &[0x00, 0xE2, 0x00, 0x00, 0x01, 0x07];
 
+// @internal
 #[test]
 fn activation_transmits_cores_frames_verbatim_and_reports_every_response() {
     let card = ScriptedCard::answering(&[Ok(&[0x90, 0x00]), Ok(&[0x01, 0x02, 0x90, 0x00])]);
@@ -70,6 +71,7 @@ fn activation_transmits_cores_frames_verbatim_and_reports_every_response() {
     );
 }
 
+// @internal
 #[test]
 fn a_later_send_uses_the_same_card_connection() {
     let card = ScriptedCard::answering(&[Ok(&[0x90, 0x00]), Ok(&[0x90, 0x00])]);
@@ -88,6 +90,7 @@ fn a_later_send_uses_the_same_card_connection() {
     assert_eq!(events, vec![received(&[0x90, 0x00])]);
 }
 
+// @internal
 #[test]
 fn a_failing_status_word_is_reported_not_interpreted() {
     let card = ScriptedCard::answering(&[Ok(&[0x6A, 0x82]), Ok(&[0x90, 0x00])]);
@@ -99,6 +102,7 @@ fn a_failing_status_word_is_reported_not_interpreted() {
     );
 }
 
+// @internal
 #[test]
 fn a_lost_tag_fails_once_and_ends_the_connection() {
     let card = ScriptedCard::answering(&[Err("Card was removed"), Ok(&[0x90, 0x00])]);
@@ -110,6 +114,7 @@ fn a_lost_tag_fails_once_and_ends_the_connection() {
     assert_eq!(after, vec![failed("no NFC tag is connected")]);
 }
 
+// @internal
 #[test]
 fn a_reader_that_cannot_connect_reports_why() {
     let mut session = ReaderSession::<ScriptedCard>::new();
@@ -117,6 +122,7 @@ fn a_reader_that_cannot_connect_reports_why() {
     assert_eq!(events, vec![failed("No smart card reader")]);
 }
 
+// @internal
 #[test]
 fn deactivation_ends_the_connection() {
     let card = ScriptedCard::answering(&[Ok(&[0x90, 0x00])]);

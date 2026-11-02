@@ -113,6 +113,7 @@ fn failed(reason: &str) -> Event {
 const SELECT: &[u8] = &[0x00, 0xA4, 0x04, 0x00, 0x01, 0xF0];
 const CARD_SEND: &[u8] = &[0x00, 0xE2, 0x00, 0x00, 0x01, 0x07];
 
+// @scenario: contact_exchange.feature :: NFC active exchange between two phones
 #[test]
 fn activate_waits_for_the_tag_then_transmits_cores_frames_and_reports_each_response() {
     let runtime = runtime();
@@ -130,6 +131,7 @@ fn activate_waits_for_the_tag_then_transmits_cores_frames_and_reports_each_respo
     assert_eq!(card.sent.lock().unwrap().clone(), vec![SELECT.to_vec()]);
 }
 
+// @scenario: contact_exchange.feature :: NFC active exchange between two phones
 #[test]
 fn send_reuses_the_connected_tag() {
     let runtime = runtime();
@@ -146,6 +148,7 @@ fn send_reuses_the_connected_tag() {
     );
 }
 
+// @internal
 #[test]
 fn a_reader_that_cannot_connect_reports_why() {
     let runtime = runtime();
@@ -160,6 +163,7 @@ fn a_reader_that_cannot_connect_reports_why() {
     assert_eq!(drain(&mut session, 1), vec![failed("No smart card reader")]);
 }
 
+// @internal
 #[test]
 fn deactivate_ends_the_wait_without_a_failure_core_no_longer_expects() {
     let runtime = runtime();
@@ -173,6 +177,7 @@ fn deactivate_ends_the_wait_without_a_failure_core_no_longer_expects() {
     assert!(card.sent.lock().unwrap().is_empty());
 }
 
+// @internal
 #[test]
 fn send_without_an_activation_reports_no_tag() {
     let runtime = runtime();
