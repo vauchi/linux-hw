@@ -18,10 +18,12 @@ use tokio::runtime::{Handle, Runtime};
 use vauchi_contract::executor::InboxLimits;
 use vauchi_contract::{Command, Event};
 
-/// One scan or advertisement at a time; 64 events is the native queue
-/// chosen for BlueZ, and 2048 bytes holds the largest observation Core
-/// accepts (private#770, "Buffering proposal").
-const BLE_LIMITS: InboxLimits = limits(64, 2048);
+/// One scan at a time; 64 events is the native queue chosen for BlueZ, and
+/// 2048 bytes holds the largest observation Core accepts (private#770,
+/// "Buffering proposal").
+const DISCOVERY_LIMITS: InboxLimits = limits(64, 2048);
+/// A 512-byte attribute value, ATT's longest, is about 2.1 KB as JSON.
+const GATT_LIMITS: InboxLimits = limits(64, 4096);
 /// A second of 48 kHz f32 samples is 192 KB.
 const AUDIO_LIMITS: InboxLimits = limits(16, 4 << 20);
 const NFC_LIMITS: InboxLimits = limits(16, 4096);
@@ -140,14 +142,14 @@ fn attach(backends: Backends, runtime: &Handle) -> Result<HardwareShell, Executo
         shell = shell.with_scanner(BleScanner::with_backend(
             discovery,
             runtime.clone(),
-            BLE_LIMITS,
+            DISCOVERY_LIMITS,
         )?);
     }
     if let Some(advertising) = backends.advertising {
         shell = shell.with_advertiser(BleAdvertiser::with_backend(
             advertising,
             runtime.clone(),
-            BLE_LIMITS,
+            GATT_LIMITS,
         )?);
     }
     if let Some(nfc) = backends.nfc {
