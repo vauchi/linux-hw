@@ -96,11 +96,11 @@ async fn an_audio_listen_reports_the_recorded_samples_through_pop() {
         .unwrap();
 
     assert_eq!(
-        next_event(&mut shell).await,
-        Event::AudioSamplesRecorded {
+        shell.next_event().await,
+        Some(Event::AudioSamplesRecorded {
             samples: vec![0.25, -0.5],
             sample_rate: 44_100
-        }
+        })
     );
     shell
         .execute(Command::AudioEmitChallenge {

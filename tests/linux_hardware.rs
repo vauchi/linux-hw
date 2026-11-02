@@ -194,3 +194,34 @@ fn a_command_without_a_backend_is_unsupported() {
         Err(ExecuteError::Unsupported)
     );
 }
+
+// @internal
+#[test]
+fn wait_for_event_returns_the_next_event_as_it_arrives() {
+    let (mut hardware, _released) = with_scanner();
+    hardware
+        .execute(Command::BleStartScanning {
+            service_uuid: "core-service".into(),
+        })
+        .unwrap();
+
+    // An upper bound, not a pause: the call returns as soon as the scan
+    // reports.
+    let event = hardware.wait_for_event(std::time::Duration::from_secs(10));
+
+    match event {
+        Some(Event::BleAdvertisementObserved(observation)) => assert_eq!(observation.id(), "peer"),
+        other => panic!("expected the scan's observation, got {other:?}"),
+    }
+}
+
+// @internal
+#[test]
+fn wait_for_event_gives_up_after_its_timeout_when_nothing_happens() {
+    let (mut hardware, _released) = with_scanner();
+
+    assert_eq!(
+        hardware.wait_for_event(std::time::Duration::from_millis(20)),
+        None
+    );
+}
