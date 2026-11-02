@@ -73,3 +73,8 @@ unimplemented = "deny"
 # fails the moment it resolves from anywhere else.
 [patch.crates-io]
 rqrr = { git = "https://gitlab.com/vauchi/utils/rqrr.git", tag = "v0.11.0+vauchi.1" }
+
+[[example]]
+# Rig checks against a phone (ADR-077 item 9); its parser is tested with the crate.
+name = "probe"
+test = true
