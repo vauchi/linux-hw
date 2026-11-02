@@ -1456,8 +1456,8 @@ dependencies = [
 
 [[package]]
 name = "vauchi-contract"
-version = "0.96.0"
-source = "git+https://gitlab.com/vauchi/contract.git?tag=v0.96.0#ef53be55ddf7c44051af077aa7dfc8b727275c84"
+version = "0.96.2"
+source = "git+https://gitlab.com/vauchi/contract.git?tag=v0.96.2#1f6c1b971bef1edb6fffab21c0bbdaa6664729fa"
 dependencies = [
  "serde",
  "serde_json",
