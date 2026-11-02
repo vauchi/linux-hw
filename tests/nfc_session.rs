@@ -71,6 +71,7 @@ fn reader(answers: &[Result<&[u8], &str>]) -> (Arc<ScriptedReader>, ScriptedCard
 
 fn session(reader: Arc<ScriptedReader>, runtime: &tokio::runtime::Runtime) -> NfcSession {
     let limits = InboxLimits {
+        operations: NonZeroUsize::new(1).unwrap(),
         events: NonZeroUsize::new(16).unwrap(),
         event_bytes: NonZeroUsize::new(4096).unwrap(),
     };
