@@ -11,6 +11,7 @@ mod audio;
 mod bluez;
 #[cfg(feature = "qr-decode")]
 mod camera;
+mod capabilities;
 mod delivery;
 mod discovery;
 mod executor;
@@ -37,6 +38,7 @@ pub use audio::AudioSession;
 pub use bluez::{BlueZAdvertising, BlueZDiscovery};
 #[cfg(feature = "qr-decode")]
 pub use camera::{CameraSession, rgb_to_luma};
+pub use capabilities::HostDevices;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
