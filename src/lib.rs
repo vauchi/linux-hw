@@ -12,6 +12,9 @@ mod executor;
 #[cfg(all(target_os = "linux", feature = "fake-bluez"))]
 pub mod fake_bluez;
 mod host;
+mod nfc;
+#[cfg(feature = "nfc")]
+mod pcsc;
 mod ports;
 mod worker;
 
@@ -21,4 +24,10 @@ pub use bluez::{BlueZAdvertising, BlueZDiscovery};
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
-pub use ports::{Advertising, Discovery, ExecutorError, HardwareFailure, Notification, Outbound};
+pub use nfc::{NfcSession, ReaderSession};
+#[cfg(feature = "nfc")]
+pub use pcsc::PcscReader;
+pub use ports::{
+    Advertising, Discovery, ExecutorError, HardwareFailure, NfcCard, NfcReader, Notification,
+    Outbound,
+};

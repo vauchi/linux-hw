@@ -88,3 +88,19 @@ pub trait Discovery: Send + Sync + 'static {
         events: EventSender,
     ) -> Pin<Box<dyn Future<Output = Result<(), HardwareFailure>> + Send + '_>>;
 }
+
+/// A connected NFC tag: transmits one APDU and returns the raw answer,
+/// status word included. The hardware shell interprets nothing.
+pub trait NfcCard: Send {
+    fn transmit(&mut self, apdu: &[u8]) -> Result<Vec<u8>, String>;
+}
+
+/// The NFC reader port: blocks until a tag connects or `cancelled` is
+/// set (PC/SC offers no arrival callback, so the wait polls), and names
+/// why it could not connect.
+pub trait NfcReader: Send + Sync + 'static {
+    fn wait_for_tag(
+        &self,
+        cancelled: &std::sync::atomic::AtomicBool,
+    ) -> Result<Box<dyn NfcCard>, String>;
+}
