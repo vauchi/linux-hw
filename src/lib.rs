@@ -12,6 +12,7 @@ mod bluez;
 #[cfg(feature = "qr-decode")]
 mod camera;
 mod capabilities;
+mod central;
 mod delivery;
 mod discovery;
 mod executor;
@@ -40,6 +41,7 @@ pub use bluez::{BlueZAdvertising, BlueZDiscovery};
 #[cfg(feature = "qr-decode")]
 pub use camera::{CameraSession, rgb_to_luma};
 pub use capabilities::HostDevices;
+pub use central::BleCentral;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
@@ -50,7 +52,8 @@ pub use nokhwa_camera::NokhwaCamera;
 #[cfg(feature = "nfc")]
 pub use pcsc::PcscReader;
 pub use ports::{
-    Advertising, AudioBackend, CameraBackend, CameraFrames, Discovery, ExecutorError,
-    HardwareFailure, LumaFrame, NfcCard, NfcReader, Notification, Outbound,
+    Advertising, AudioBackend, CameraBackend, CameraFrames, Central, Discovery, ExecutorError,
+    HardwareFailure, LinkRequest, LinkRequests, LumaFrame, NfcCard, NfcReader, Notification,
+    Outbound,
 };
 pub use shell::{ExecuteError, HardwareShell};

@@ -5,9 +5,10 @@ use crate::advertising::BleAdvertiser;
 use crate::audio::AudioSession;
 #[cfg(feature = "qr-decode")]
 use crate::camera::CameraSession;
+use crate::central::BleCentral;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
-use crate::ports::{ExecutorError, Notification};
+use crate::ports::{ExecutorError, LinkRequest, Notification};
 use vauchi_contract::executor::DeliveryError;
 use vauchi_contract::{BleLinkDirection, Command, Event};
 
@@ -22,7 +23,7 @@ pub enum ExecuteError {
     Delivery(#[from] DeliveryError),
 }
 
-const SOURCES: usize = 5;
+const SOURCES: usize = 6;
 
 /// The entry point an app hands Core's hardware commands to (ADR-077
 /// item 4, ADR-078 item 3). Each command goes to the session that owns
@@ -31,6 +32,7 @@ const SOURCES: usize = 5;
 pub struct HardwareShell {
     scanner: Option<BleScanner>,
     advertiser: Option<BleAdvertiser>,
+    central: Option<BleCentral>,
     nfc: Option<NfcSession>,
     audio: Option<AudioSession>,
     #[cfg(feature = "qr-decode")]
@@ -50,6 +52,11 @@ impl HardwareShell {
 
     pub fn with_advertiser(mut self, advertiser: BleAdvertiser) -> Self {
         self.advertiser = Some(advertiser);
+        self
+    }
+
+    pub fn with_central(mut self, central: BleCentral) -> Self {
+        self.central = Some(central);
         self
     }
 
@@ -90,6 +97,25 @@ impl HardwareShell {
                 uuid,
                 data,
             })?),
+            Command::BleConnect { device_id } => {
+                Ok(present(&mut self.central)?.connect(device_id)?)
+            }
+            Command::BleWriteCharacteristic {
+                device_id,
+                direction: BleLinkDirection::Outbound,
+                uuid,
+                data,
+            } => Ok(present(&mut self.central)?
+                .request(&device_id, LinkRequest::Write { uuid, data })?),
+            Command::BleReadCharacteristic {
+                device_id,
+                direction: BleLinkDirection::Outbound,
+                uuid,
+            } => Ok(present(&mut self.central)?.request(&device_id, LinkRequest::Read { uuid })?),
+            Command::BleDisconnect {
+                device_id,
+                direction: BleLinkDirection::Outbound,
+            } => Ok(present(&mut self.central)?.disconnect(&device_id)?),
             Command::NfcActivate { apdus, .. } => Ok(present(&mut self.nfc)?.activate(apdus)?),
             Command::NfcSendApdu { apdus, .. } => Ok(present(&mut self.nfc)?.send(apdus)?),
             Command::NfcDeactivate => present(&mut self.nfc).map(NfcSession::deactivate),
@@ -131,6 +157,9 @@ impl HardwareShell {
         if let Some(advertiser) = &mut self.advertiser {
             advertiser.shutdown().await?;
         }
+        if let Some(central) = &mut self.central {
+            central.shutdown().await?;
+        }
         if let Some(nfc) = &mut self.nfc {
             nfc.shutdown().await?;
         }
@@ -152,6 +181,7 @@ impl HardwareShell {
             3 => self.audio.as_mut().and_then(AudioSession::pop),
             #[cfg(feature = "qr-decode")]
             4 => self.camera.as_mut().and_then(CameraSession::pop),
+            5 => self.central.as_mut().and_then(BleCentral::pop),
             _ => None,
         }
     }

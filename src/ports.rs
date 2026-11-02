@@ -66,6 +66,35 @@ impl Outbound {
     }
 }
 
+/// What Core asks of the outbound link while it is up.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkRequest {
+    Write { uuid: String, data: Vec<u8> },
+    Read { uuid: String },
+}
+
+/// Core's requests for one outbound link; `None` once the host dropped it.
+pub struct LinkRequests(pub(crate) tokio::sync::mpsc::Receiver<LinkRequest>);
+
+impl LinkRequests {
+    pub async fn next(&mut self) -> Option<LinkRequest> {
+        self.0.recv().await
+    }
+}
+
+/// OS central port: dial the peer's GATT server and carry Core's requests
+/// on that link. The backend reports `BleConnected`, what the peer sends,
+/// read answers and `BleDisconnected`, all with `BleLinkDirection::Outbound`.
+/// Dropping the returned future disconnects.
+pub trait Central: Send + Sync + 'static {
+    fn connect(
+        &self,
+        device_id: String,
+        requests: LinkRequests,
+        events: EventSender,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HardwareFailure>> + Send + '_>>;
+}
+
 /// OS peripheral port: advertise, serve the exchange's GATT service, and
 /// report what centrals do with it. Dropping the returned future withdraws
 /// both the advertisement and the service.

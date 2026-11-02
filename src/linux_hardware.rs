@@ -6,11 +6,12 @@ use crate::audio::AudioSession;
 #[cfg(feature = "qr-decode")]
 use crate::camera::CameraSession;
 use crate::capabilities::HostDevices;
+use crate::central::BleCentral;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
 #[cfg(feature = "qr-decode")]
 use crate::ports::CameraBackend;
-use crate::ports::{Advertising, AudioBackend, Discovery, ExecutorError, NfcReader};
+use crate::ports::{Advertising, AudioBackend, Central, Discovery, ExecutorError, NfcReader};
 use crate::shell::{ExecuteError, HardwareShell};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -52,6 +53,7 @@ pub enum StartError {
 pub struct Backends {
     pub discovery: Option<Arc<dyn Discovery>>,
     pub advertising: Option<Arc<dyn Advertising>>,
+    pub central: Option<Arc<dyn Central>>,
     pub nfc: Option<Arc<dyn NfcReader>>,
     pub audio: Option<Arc<dyn AudioBackend>>,
     #[cfg(feature = "qr-decode")]
@@ -148,6 +150,13 @@ fn attach(backends: Backends, runtime: &Handle) -> Result<HardwareShell, Executo
     if let Some(advertising) = backends.advertising {
         shell = shell.with_advertiser(BleAdvertiser::with_backend(
             advertising,
+            runtime.clone(),
+            GATT_LIMITS,
+        )?);
+    }
+    if let Some(central) = backends.central {
+        shell = shell.with_central(BleCentral::with_backend(
+            central,
             runtime.clone(),
             GATT_LIMITS,
         )?);
