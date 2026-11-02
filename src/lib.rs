@@ -18,6 +18,7 @@ mod executor;
 #[cfg(all(target_os = "linux", feature = "fake-bluez"))]
 pub mod fake_bluez;
 mod host;
+mod linux_hardware;
 mod nfc;
 #[cfg(feature = "camera")]
 mod nokhwa_camera;
@@ -42,6 +43,7 @@ pub use capabilities::HostDevices;
 pub use delivery::EventSender;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
+pub use linux_hardware::{Backends, LinuxHardware, StartError};
 pub use nfc::{NfcSession, ReaderSession};
 #[cfg(feature = "camera")]
 pub use nokhwa_camera::NokhwaCamera;

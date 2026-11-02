@@ -15,7 +15,7 @@ publish = false
 [dependencies]
 # The shell contract (ADR-078): the only Vauchi crate a hardware shell depends on.
 vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.96.0", version = "^0.96" }
-tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros"] }
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 # The QR decoder (feature `qr-decode`): rqrr from the fork patched in below,
