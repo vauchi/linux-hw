@@ -10,6 +10,9 @@
 //! crate's tests, GTK, later Qt and the terminals) runs against one fake.
 
 mod central;
+mod remote;
+
+pub use remote::{REMOTE_MTU, RemoteCharacteristic};
 
 use futures_util::StreamExt;
 use std::collections::HashMap;
@@ -46,6 +49,23 @@ pub enum Call {
         service_uuids: Vec<String>,
         other_properties: Vec<String>,
     },
+    /// A central's calls on a remote GATT server (`remote.rs`).
+    Connect {
+        address: String,
+    },
+    Disconnect {
+        address: String,
+    },
+    StartNotify {
+        uuid: String,
+    },
+    WriteValue {
+        uuid: String,
+        data: Vec<u8>,
+    },
+    ReadValue {
+        uuid: String,
+    },
 }
 
 pub struct Script {
@@ -54,6 +74,8 @@ pub struct Script {
     pub start_error: Option<&'static str>,
     /// Refuses `RegisterApplication` with this D-Bus error name.
     pub register_error: Option<&'static str>,
+    /// Refuses a remote's `Device1.Connect` with this D-Bus error name.
+    pub connect_error: Option<&'static str>,
 }
 
 impl Default for Script {
@@ -63,6 +85,7 @@ impl Default for Script {
             adapter_powered: Some(true),
             start_error: None,
             register_error: None,
+            connect_error: None,
         }
     }
 }
@@ -77,6 +100,7 @@ pub struct FakeBlueZ {
     responder: JoinHandle<()>,
     apps: mpsc::UnboundedReceiver<central::App>,
     app: Option<central::App>,
+    remotes: remote::Remotes,
 }
 
 impl FakeBlueZ {
@@ -119,6 +143,7 @@ impl FakeBlueZ {
         let (calls_tx, calls) = mpsc::unbounded_channel();
         let (scanner_tx, scanner) = mpsc::unbounded_channel();
         let (apps_tx, apps) = mpsc::unbounded_channel();
+        let remotes = remote::Remotes::default();
         let responder = tokio::spawn(respond(
             bluez.clone(),
             script,
@@ -126,6 +151,7 @@ impl FakeBlueZ {
                 calls: calls_tx,
                 scanner: scanner_tx,
                 apps: apps_tx,
+                remotes: remotes.clone(),
             },
         ));
         Self {
@@ -138,7 +164,23 @@ impl FakeBlueZ {
             responder,
             apps,
             app: None,
+            remotes,
         }
+    }
+
+    /// A GATT server in range at `address`, for the central side to connect to.
+    pub fn remote(&self, address: &str, characteristics: Vec<RemoteCharacteristic>) {
+        self.remotes.add(address, characteristics);
+    }
+
+    /// The remote changes `uuid`'s value, as a notification to subscribers.
+    pub async fn remote_notifies(&self, address: &str, uuid: &str, data: &[u8]) {
+        remote::emit_value(&self.bluez, &self.remotes.path_of(address, uuid), data).await;
+    }
+
+    /// The remote goes out of range or drops the link.
+    pub async fn remote_drops(&self, address: &str) {
+        self.remotes.drop_link(&self.bluez, address).await;
     }
 
     pub fn socket(&self) -> PathBuf {
@@ -231,25 +273,28 @@ fn device(address: &str, rssi: Option<i16>, uuids: &[&str]) -> Properties {
     properties
 }
 
-fn objects(script: &Script) -> Objects {
+fn objects(script: &Script, remotes: &remote::Remotes) -> Objects {
     let Some(powered) = script.adapter_powered else {
         return Objects::new();
     };
     let adapter = HashMap::from([("Powered".into(), Variant::from(powered).try_into().unwrap())]);
-    HashMap::from([(
+    let mut objects = HashMap::from([(
         ObjectPath::try_from(ADAPTER).unwrap().into(),
         HashMap::from([
             ("org.bluez.Adapter1".into(), adapter),
             ("org.bluez.GattManager1".into(), Properties::new()),
             ("org.bluez.LEAdvertisingManager1".into(), Properties::new()),
         ]),
-    )])
+    )]);
+    remotes.list(&mut objects);
+    objects
 }
 
 struct Peers {
     calls: mpsc::UnboundedSender<Call>,
     scanner: mpsc::UnboundedSender<String>,
     apps: mpsc::UnboundedSender<central::App>,
+    remotes: remote::Remotes,
 }
 
 async fn respond(bluez: Connection, script: Script, peers: Peers) {
@@ -257,6 +302,7 @@ async fn respond(bluez: Connection, script: Script, peers: Peers) {
         calls,
         scanner,
         apps,
+        remotes,
     } = peers;
     let mut incoming = MessageStream::from(&bluez);
     while let Some(Ok(message)) = incoming.next().await {
@@ -264,10 +310,17 @@ async fn respond(bluez: Connection, script: Script, peers: Peers) {
         if header.message_type() != Type::MethodCall {
             continue;
         }
+        if let Some(answered) = remotes
+            .answer(&bluez, &message, script.connect_error, &calls)
+            .await
+        {
+            answered.unwrap();
+            continue;
+        }
         let path = header.path().map(ToString::to_string).unwrap_or_default();
         let member = header.member().map(ToString::to_string).unwrap_or_default();
         match (path.as_str(), member.as_str()) {
-            ("/", "GetManagedObjects") => bluez.reply(&header, &objects(&script)).await,
+            ("/", "GetManagedObjects") => bluez.reply(&header, &objects(&script, &remotes)).await,
             (ADAPTER, "SetDiscoveryFilter") => {
                 let filter: Properties = message.body().deserialize().unwrap();
                 calls
