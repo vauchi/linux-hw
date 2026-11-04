@@ -6,6 +6,7 @@ use crate::audio::AudioSession;
 #[cfg(feature = "qr-decode")]
 use crate::camera::CameraSession;
 use crate::central::BleCentral;
+use crate::direct::DirectSession;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
 use crate::ports::{ExecutorError, LinkRequest, Notification};
@@ -23,7 +24,7 @@ pub enum ExecuteError {
     Delivery(#[from] DeliveryError),
 }
 
-const SOURCES: usize = 6;
+const SOURCES: usize = 7;
 
 /// The entry point an app hands Core's hardware commands to (ADR-077
 /// item 4, ADR-078 item 3). Each command goes to the session that owns
@@ -37,6 +38,7 @@ pub struct HardwareShell {
     audio: Option<AudioSession>,
     #[cfg(feature = "qr-decode")]
     camera: Option<CameraSession>,
+    direct: Option<DirectSession>,
     next_source: usize,
 }
 
@@ -73,6 +75,11 @@ impl HardwareShell {
     #[cfg(feature = "qr-decode")]
     pub fn with_camera(mut self, camera: CameraSession) -> Self {
         self.camera = Some(camera);
+        self
+    }
+
+    pub fn with_direct(mut self, direct: DirectSession) -> Self {
+        self.direct = Some(direct);
         self
     }
 
@@ -136,6 +143,11 @@ impl HardwareShell {
             Command::CameraStop { preview_id } => {
                 present(&mut self.camera).map(|camera| camera.stop(&preview_id))
             }
+            Command::DirectSend {
+                payload,
+                is_initiator,
+                endpoint,
+            } => Ok(present(&mut self.direct)?.send(payload, is_initiator, endpoint)?),
             _ => Err(ExecuteError::Unsupported),
         }
     }
@@ -163,6 +175,7 @@ impl HardwareShell {
             audio,
             #[cfg(feature = "qr-decode")]
             camera,
+            direct,
             ..
         } = self;
         #[cfg(feature = "qr-decode")]
@@ -181,6 +194,7 @@ impl HardwareShell {
             Some(event) = async { nfc.as_mut()?.next_event().await } => Some(event),
             Some(event) = async { audio.as_mut()?.next_event().await } => Some(event),
             Some(event) = camera => Some(event),
+            Some(event) = async { direct.as_mut()?.next_event().await } => Some(event),
             else => None,
         }
     }
@@ -207,6 +221,9 @@ impl HardwareShell {
         if let Some(camera) = &mut self.camera {
             camera.shutdown().await?;
         }
+        if let Some(direct) = &mut self.direct {
+            direct.shutdown().await?;
+        }
         Ok(())
     }
 
@@ -219,6 +236,7 @@ impl HardwareShell {
             #[cfg(feature = "qr-decode")]
             4 => self.camera.as_mut().and_then(CameraSession::pop),
             5 => self.central.as_mut().and_then(BleCentral::pop),
+            6 => self.direct.as_mut().and_then(DirectSession::pop),
             _ => None,
         }
     }

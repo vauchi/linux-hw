@@ -178,3 +178,16 @@ pub trait CameraBackend: Send + Sync + 'static {
         cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<Box<dyn CameraFrames>, String>;
 }
+
+/// The direct-send port: one framed exchange with the peer at Core's
+/// endpoint over a wired or local link, blocking until the peer's payload
+/// arrives or Core's deadlines pass. Core chose the endpoint, role and
+/// deadlines (ADR-077); this is a pure hardware adapter.
+pub trait DirectBackend: Send + Sync + 'static {
+    fn exchange(
+        &self,
+        endpoint: &vauchi_contract::DirectEndpoint,
+        payload: &[u8],
+        is_initiator: bool,
+    ) -> Result<Vec<u8>, String>;
+}
