@@ -102,6 +102,7 @@ impl Backends {
 pub struct LinuxHardware {
     shell: HardwareShell,
     report: Event,
+    pending_command_error: Option<Event>,
     // Dropped after `shell`, whose shutdown runs on it.
     runtime: Runtime,
 }
@@ -123,6 +124,7 @@ impl LinuxHardware {
         Ok(Self {
             shell,
             report: devices.report(),
+            pending_command_error: None,
             runtime,
         })
     }
@@ -133,11 +135,27 @@ impl LinuxHardware {
     }
 
     pub fn execute(&mut self, command: Command) -> Result<(), ExecuteError> {
-        self.shell.execute(command)
+        let ble_write = matches!(command, Command::BleWriteCharacteristic { .. });
+        let result = self.shell.execute(command);
+        if ble_write
+            && result
+                == Err(ExecuteError::Delivery(
+                    vauchi_contract::executor::DeliveryError::Full,
+                ))
+            && self.pending_command_error.is_none()
+        {
+            self.pending_command_error = Some(Event::HardwareError {
+                transport: "BLE".into(),
+                error: "hardware command queue is full".into(),
+            });
+        }
+        result
     }
 
     pub fn pop(&mut self) -> Option<Event> {
-        self.shell.pop()
+        self.pending_command_error
+            .take()
+            .or_else(|| self.shell.pop())
     }
 
     /// Block until any session reports, or `timeout` passes (`None`), so a
