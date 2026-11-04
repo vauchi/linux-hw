@@ -17,7 +17,12 @@ targets = [
 version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = []
+ignore = [
+    # paste is unmaintained; nokhwa (the camera port) depends on it as a
+    # build-time proc-macro, and nokhwa 0.10.11 is the newest release. Gone
+    # once the camera moves to PipeWire (owner, 2026-10-31).
+    "RUSTSEC-2024-0436",
+]
 
 [licenses]
 version = 2
@@ -35,6 +40,7 @@ allow = [
     "MPL-2.0",
     "CDLA-Permissive-2.0",  # webpki-roots (Mozilla CA certs)
     "OpenSSL",              # aws-lc-sys (BoringSSL fork, FIPS 140-3)
+    "IJG",                  # libjpeg via mozjpeg in nokhwa (camera feature), as linux-gtk and linux-app allow
 ]
 confidence-threshold = 0.8
 
