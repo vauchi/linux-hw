@@ -92,3 +92,24 @@ fn a_peer_speaking_another_protocol_is_refused() {
     assert!(error.contains("exchange failed"), "{error}");
     phone.join().unwrap();
 }
+
+// @scenario: generic_presentation_protocol.feature :: Invalid boundary input fails safely
+#[test]
+fn a_phone_answering_with_an_empty_frame_is_refused() {
+    use std::io::Write;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let phone = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream.write_all(b"VXCH\x01\x00\x00\x00\x00").unwrap();
+        // Stay on the line for the reply, so only the empty frame can fail.
+        let _ = direct::read_frame(&mut stream);
+    });
+
+    let error = TcpDirect
+        .exchange(&endpoint(port), b"card", false)
+        .unwrap_err();
+
+    assert!(error.contains("exchange failed"), "{error}");
+    phone.join().unwrap();
+}
