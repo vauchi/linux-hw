@@ -134,19 +134,28 @@ impl LinuxHardware {
         self.report.clone()
     }
 
+    /// BLE read/write delivery refusals also reach Core through `pop` or
+    /// `wait_for_event`, even when the host ignores this return value.
+    /// Only the first undrained refusal is retained; unsupported commands
+    /// remain silent, as specified by the capability-report contract.
     pub fn execute(&mut self, command: Command) -> Result<(), ExecuteError> {
-        let ble_write = matches!(command, Command::BleWriteCharacteristic { .. });
+        let ble_request = matches!(
+            command,
+            Command::BleWriteCharacteristic { .. } | Command::BleReadCharacteristic { .. }
+        );
         let result = self.shell.execute(command);
-        if ble_write
-            && result
-                == Err(ExecuteError::Delivery(
-                    vauchi_contract::executor::DeliveryError::Full,
-                ))
+        if ble_request
             && self.pending_command_error.is_none()
+            && let Err(ExecuteError::Delivery(error)) = result
         {
             self.pending_command_error = Some(Event::HardwareError {
                 transport: "BLE".into(),
-                error: "hardware command queue is full".into(),
+                error: match error {
+                    vauchi_contract::executor::DeliveryError::Full => {
+                        "hardware command queue is full".into()
+                    }
+                    other => other.to_string(),
+                },
             });
         }
         result
@@ -162,6 +171,9 @@ impl LinuxHardware {
     /// terminal can wait between typed lines or on its tick instead of
     /// polling.
     pub fn wait_for_event(&mut self, timeout: std::time::Duration) -> Option<Event> {
+        if let Some(event) = self.pending_command_error.take() {
+            return Some(event);
+        }
         let next = self.shell.next_event();
         self.runtime
             .block_on(async { tokio::time::timeout(timeout, next).await.ok().flatten() })
