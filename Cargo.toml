@@ -14,13 +14,14 @@ publish = false
 
 [dependencies]
 # The shell contract (ADR-078): the only Vauchi crate a hardware shell depends on.
-vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.97.0", version = "^0.97" }
+vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.97.1", version = "^0.97" }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 # The QR decoder (feature `qr-decode`): rqrr from the fork patched in below,
 # rxing as the fast first pass, image for the gray frame type.
 rqrr = { version = "0.11", optional = true }
+mdns-sd = { version = "0.11", optional = true }
 rxing = { version = "0.8", default-features = false, features = ["encoding_rs"], optional = true }
 image = { version = "0.25", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
@@ -46,6 +47,9 @@ audio = ["dep:alsa"]
 qr-decode = ["dep:rqrr", "dep:rxing", "dep:image", "dep:serde"]
 # The V4L2 camera through nokhwa behind the camera port; scans need the decoder.
 camera = ["qr-decode", "dep:nokhwa"]
+# mDNS discovery of the phone for direct send; without it, Core's fallback
+# host and port are used.
+mdns = ["dep:mdns-sd"]
 
 [dev-dependencies]
 tempfile = "3"

@@ -14,9 +14,8 @@ use tokio::runtime::Handle;
 use vauchi_contract::executor::{DeliveryError, InboxLimits};
 use vauchi_contract::{DirectEndpoint, Event};
 
-/// The frame codec's bound (contract `direct`, 64 KiB), checked before the
-/// payload reaches a thread.
-const MAX_PAYLOAD: usize = 65_536;
+/// The frame codec's bound, checked before the payload reaches a thread.
+const MAX_PAYLOAD: usize = vauchi_contract::direct::MAX_DIRECT_PAYLOAD as usize;
 const TRANSPORT: &str = "USB";
 
 #[derive(Clone)]

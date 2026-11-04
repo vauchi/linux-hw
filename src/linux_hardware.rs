@@ -7,11 +7,14 @@ use crate::audio::AudioSession;
 use crate::camera::CameraSession;
 use crate::capabilities::HostDevices;
 use crate::central::BleCentral;
+use crate::direct::DirectSession;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
 #[cfg(feature = "qr-decode")]
 use crate::ports::CameraBackend;
-use crate::ports::{Advertising, AudioBackend, Central, Discovery, ExecutorError, NfcReader};
+use crate::ports::{
+    Advertising, AudioBackend, Central, DirectBackend, Discovery, ExecutorError, NfcReader,
+};
 use crate::shell::{ExecuteError, HardwareShell};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -28,6 +31,8 @@ const GATT_LIMITS: InboxLimits = limits(64, 4096);
 /// A second of 48 kHz f32 samples is 192 KB.
 const AUDIO_LIMITS: InboxLimits = limits(16, 4 << 20);
 const NFC_LIMITS: InboxLimits = limits(16, 4096);
+/// One exchange at a time; its answer is at most the 64 KiB frame bound.
+const DIRECT_LIMITS: InboxLimits = limits(4, 1 << 17);
 #[cfg(feature = "qr-decode")]
 const CAMERA_LIMITS: InboxLimits = limits(16, 1 << 16);
 
@@ -58,6 +63,7 @@ pub struct Backends {
     pub audio: Option<Arc<dyn AudioBackend>>,
     #[cfg(feature = "qr-decode")]
     pub camera: Option<Arc<dyn CameraBackend>>,
+    pub direct: Option<Arc<dyn DirectBackend>>,
 }
 
 impl Backends {
@@ -84,6 +90,8 @@ impl Backends {
         if claimed.has_camera {
             backends.camera = Some(Arc::new(crate::nokhwa_camera::NokhwaCamera));
         }
+        // TCP is on every host; Core decides when a wired exchange is offered.
+        backends.direct = Some(Arc::new(crate::tcp_direct::TcpDirect));
         let _ = claimed;
         backends
     }
@@ -187,6 +195,13 @@ fn attach(backends: Backends, runtime: &Handle) -> Result<HardwareShell, Executo
             camera,
             runtime.clone(),
             CAMERA_LIMITS,
+        )?);
+    }
+    if let Some(direct) = backends.direct {
+        shell = shell.with_direct(DirectSession::with_backend(
+            direct,
+            runtime.clone(),
+            DIRECT_LIMITS,
         )?);
     }
     Ok(shell)

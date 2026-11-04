@@ -31,6 +31,7 @@ mod ports;
 #[cfg(feature = "qr-decode")]
 pub mod qr;
 mod shell;
+mod tcp_direct;
 mod worker;
 
 pub use advertising::BleAdvertiser;
@@ -59,3 +60,4 @@ pub use ports::{
     Notification, Outbound,
 };
 pub use shell::{ExecuteError, HardwareShell};
+pub use tcp_direct::TcpDirect;
