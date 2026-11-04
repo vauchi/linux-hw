@@ -71,27 +71,48 @@ impl Backends {
     /// runs exactly what it told Core it can.
     pub fn host(devices: &HostDevices) -> Self {
         let claimed = devices.capabilities();
-        let mut backends = Self::default();
+        let backends = Self {
+            direct: Some(Arc::new(crate::tcp_direct::TcpDirect)),
+            ..Self::default()
+        };
         #[cfg(target_os = "linux")]
-        if claimed.has_ble {
-            backends.discovery = Some(Arc::new(crate::bluez::BlueZDiscovery::system()));
-            backends.advertising = Some(Arc::new(crate::bluez::BlueZAdvertising::system()));
-            backends.central = Some(Arc::new(crate::bluez::BlueZCentral::system()));
-        }
+        let backends = if claimed.has_ble {
+            Self {
+                discovery: Some(Arc::new(crate::bluez::BlueZDiscovery::system())),
+                advertising: Some(Arc::new(crate::bluez::BlueZAdvertising::system())),
+                central: Some(Arc::new(crate::bluez::BlueZCentral::system())),
+                ..backends
+            }
+        } else {
+            backends
+        };
         #[cfg(feature = "nfc")]
-        if claimed.has_nfc {
-            backends.nfc = Some(Arc::new(crate::pcsc::PcscReader));
-        }
+        let backends = if claimed.has_nfc {
+            Self {
+                nfc: Some(Arc::new(crate::pcsc::PcscReader)),
+                ..backends
+            }
+        } else {
+            backends
+        };
         #[cfg(feature = "audio")]
-        if claimed.audio != vauchi_contract::exchange_types::AudioCapability::None {
-            backends.audio = Some(Arc::new(crate::alsa_audio::AlsaAudio));
-        }
+        let backends = if claimed.audio != vauchi_contract::exchange_types::AudioCapability::None {
+            Self {
+                audio: Some(Arc::new(crate::alsa_audio::AlsaAudio)),
+                ..backends
+            }
+        } else {
+            backends
+        };
         #[cfg(feature = "camera")]
-        if claimed.has_camera {
-            backends.camera = Some(Arc::new(crate::nokhwa_camera::NokhwaCamera));
-        }
-        // TCP is on every host; Core decides when a wired exchange is offered.
-        backends.direct = Some(Arc::new(crate::tcp_direct::TcpDirect));
+        let backends = if claimed.has_camera {
+            Self {
+                camera: Some(Arc::new(crate::nokhwa_camera::NokhwaCamera)),
+                ..backends
+            }
+        } else {
+            backends
+        };
         let _ = claimed;
         backends
     }
