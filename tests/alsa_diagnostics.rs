@@ -65,6 +65,7 @@ fn paired(names: &[&str]) -> Vec<(String, String)> {
         .collect()
 }
 
+// @internal
 #[test]
 fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
     let output = run_worker("1", false);
@@ -102,6 +103,7 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
     assert_eq!(ids.len(), 2);
 }
 
+// @internal
 #[test]
 fn disabled_trace_preserves_results_without_diagnostic_output() {
     let output = run_worker("0", false);
@@ -113,6 +115,7 @@ fn disabled_trace_preserves_results_without_diagnostic_output() {
     assert_eq!(String::from_utf8(output.stderr).unwrap(), "");
 }
 
+// @internal
 #[test]
 fn failed_open_returns_from_the_stage_without_claiming_a_close() {
     let output = run_worker("1", true);
@@ -132,6 +135,7 @@ fn failed_open_returns_from_the_stage_without_claiming_a_close() {
     );
 }
 
+// @internal
 #[test]
 #[ignore = "parent tests supply an isolated ALSA configuration"]
 fn diagnostic_worker() {
