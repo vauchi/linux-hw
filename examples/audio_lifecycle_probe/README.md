@@ -71,7 +71,7 @@ Call IDs distinguish overlapping operations. A `return` edge means the
 stage returned, including an error; it does not mean success.
 
 Stages cover `operation`, `open`, `configure`, `io`, `write` or `read`,
-`start` for capture, `recover`, `retry_write`, `drain` and `close`.
+`start` for capture, `recover`, `retry_write`, `finish`, `drop` and `close`.
 The read/write stages cover their whole loops rather than each chunk.
 Recovery appears only when needed. Close surrounds the actual PCM
 destructor, including error paths after a successful open. The enclosing
@@ -88,3 +88,27 @@ The stage tests run the real backend in subprocesses with a temporary
 ALSA null-device configuration or a deliberately unavailable plugin.
 They verify diagnostic boundaries and unchanged API results without
 accessing host audio. These controls are not native-device acceptance.
+
+## Playback completion and cancellation
+
+Playback now waits for pending frames with cancellation checks instead
+of calling the native blocking drain function. A prepared stream is
+started before waiting, including a short buffer that did not start
+automatically. Cancellation stops waiting and explicitly drops queued
+frames; ordinary completion waits until no pending frames remain before
+dropping and closing the PCM. Start, delay-query and stop errors reach
+the caller. An end-of-playback underrun is treated as an empty queue.
+
+The `finish` stage covers this wait, followed by a separate `drop` stage
+for the native stop call. The loop pauses for 10 ms between queries;
+this is not a bound on cancellation latency because native queries,
+device setup and stop/close calls can still block. Both replacement and
+cleanup still need the physical probe, followed by an ordinary run with
+stage output disabled. No acoustic-silence guarantee follows from API return.
+
+The distinction between preserving pending frames with drain and
+discarding them with drop is documented in the
+[ALSA PCM reference](https://www.alsa-project.org/alsa-doc/alsa-lib/group___p_c_m.html).
+The upstream [PulseAudio ALSA plugin](https://github.com/alsa-project/alsa-plugins/blob/master/pulse/pcm_pulse.c)
+implements drain with a synchronous operation wait, so setting a
+nonblocking flag alone is not a sufficient fix for that path.
