@@ -85,6 +85,7 @@ test:audio:
     - cargo clippy --locked --all-targets --features audio -- -D warnings
     - cargo test --locked --features audio
     - cargo build --locked --features audio --example audio_lifecycle_probe
+    - cargo build --locked --features audio --example audio_acceptance_probe
 
 # cargo-deny on MRs; cargo-vet on MRs that change dependencies and on
 # main, both against the committed lockfile. Exemptions only, never
