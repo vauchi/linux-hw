@@ -21,9 +21,10 @@ fn main() -> std::process::ExitCode {
         ) {
             Ok(report) => {
                 println!(
-                    "status={} initial_active={} replacement_return_ms={:?} backend_overlap={:?} peak_backend_calls={} unfinished_after_cleanup={} errors={:?}",
+                    "status={} initial_active={} returned_before_stop={} replacement_return_ms={:?} backend_overlap={:?} peak_backend_calls={} unfinished_after_cleanup={} errors={:?}",
                     report.status,
                     report.initial_active,
+                    report.returned_before_stop,
                     report.replacement_return_ms,
                     report.backend_overlap,
                     report.peak_backend_calls,

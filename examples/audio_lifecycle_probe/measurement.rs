@@ -17,6 +17,7 @@ pub enum Port {
 #[derive(Debug)]
 pub struct Report {
     pub initial_active: bool,
+    pub returned_before_stop: bool,
     pub replacement_return_ms: Option<f64>,
     pub backend_overlap: Option<bool>,
     pub peak_backend_calls: usize,
@@ -132,12 +133,18 @@ pub fn measure(
     });
     let initial_active = before.first().is_some_and(|call| call.returned.is_none());
     let replacement = Instant::now();
-    if initial_active {
+    let before_stop = if initial_active {
         start(&mut session, port);
         trace.wait(deadline, |calls| {
             calls.len() == 2 && calls[0].returned.is_some()
-        });
-    }
+        })
+    } else {
+        before
+    };
+    let returned_before_stop = initial_active
+        && before_stop
+            .first()
+            .is_some_and(|call| call.returned.is_some());
     session.stop();
     let shutdown = runtime.block_on(session.shutdown());
     let calls = trace.wait(deadline, |calls| {
@@ -145,7 +152,7 @@ pub fn measure(
     });
     runtime.shutdown_timeout(Duration::from_millis(100));
     let first_return = calls.first().and_then(|call| call.returned);
-    let replacement_return_ms = if initial_active {
+    let replacement_return_ms = if returned_before_stop {
         first_return.map(|time| time.saturating_duration_since(replacement).as_secs_f64() * 1000.0)
     } else {
         None
@@ -172,6 +179,7 @@ pub fn measure(
         errors.push(error.to_string());
     }
     let status = if initial_active
+        && returned_before_stop
         && calls.len() == 2
         && calls[0].cancelled
         && unfinished_after_cleanup == 0
@@ -183,6 +191,7 @@ pub fn measure(
     };
     Ok(Report {
         initial_active,
+        returned_before_stop,
         replacement_return_ms,
         backend_overlap,
         peak_backend_calls,

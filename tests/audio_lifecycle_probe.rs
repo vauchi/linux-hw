@@ -46,6 +46,7 @@ fn delayed_native_exit_is_reported_as_overlapping_backend_calls() {
         )
         .unwrap();
         assert!(report.initial_active);
+        assert!(report.returned_before_stop);
         assert_eq!(report.backend_overlap, Some(true));
         assert_eq!(report.peak_backend_calls, 2);
         assert!((0.0..2000.0).contains(&report.replacement_return_ms.unwrap()));
@@ -79,6 +80,7 @@ fn a_native_error_is_inconclusive_instead_of_a_fast_cancellation_success() {
         )
         .unwrap();
         assert!(!report.initial_active);
+        assert!(!report.returned_before_stop);
         assert_eq!(report.backend_overlap, None);
         assert_eq!(report.peak_backend_calls, 1);
         assert_eq!(report.replacement_return_ms, None);
@@ -132,6 +134,8 @@ fn an_old_call_returning_only_after_cleanup_is_not_a_successful_measurement() {
     )
     .unwrap();
     assert!(report.initial_active);
+    assert!(!report.returned_before_stop);
+    assert_eq!(report.replacement_return_ms, None);
     assert_eq!(report.backend_overlap, Some(true));
     assert_eq!(report.unfinished_after_cleanup, 0);
     assert_eq!(report.status, "inconclusive");
