@@ -58,7 +58,9 @@ fn start(session: &mut AudioSession, port: Port) {
     }
 }
 
-fn replacement_stops_only_its_own_port(port: Port) {
+fn replacement_stops_only_its_own_port(
+    port: Port,
+) -> (Port, (usize, usize), Option<vauchi_contract::Event>) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()
@@ -95,27 +97,23 @@ fn replacement_stops_only_its_own_port(port: Port) {
     runtime.block_on(session.shutdown()).unwrap();
 
     assert_eq!(replacement.unwrap(), port);
-    assert_eq!(
-        cancelled.unwrap(),
-        port,
-        "the replaced native operation stops"
-    );
-    assert_eq!(active, (1, 1), "the other audio port keeps running");
-    assert_eq!(
-        session.pop(),
-        None,
-        "cancelled audio produces no late event"
-    );
+    (cancelled.unwrap(), active, session.pop())
 }
 
 // @internal — #770: replacing a command must release its native operation.
 #[test]
 fn replacing_an_emission_stops_the_old_emission_without_stopping_the_listen() {
-    replacement_stops_only_its_own_port(Port::Emit);
+    assert_eq!(
+        replacement_stops_only_its_own_port(Port::Emit),
+        (Port::Emit, (1, 1), None)
+    );
 }
 
 // @internal — #770: recording and emission are independent native operations.
 #[test]
 fn replacing_a_listen_stops_the_old_recording_without_stopping_the_emission() {
-    replacement_stops_only_its_own_port(Port::Listen);
+    assert_eq!(
+        replacement_stops_only_its_own_port(Port::Listen),
+        (Port::Listen, (1, 1), None)
+    );
 }
