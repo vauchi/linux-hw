@@ -6,6 +6,10 @@
 mod measurement;
 
 #[cfg(all(target_os = "linux", feature = "audio"))]
+#[path = "audio_lifecycle_probe/trace.rs"]
+mod trace;
+
+#[cfg(all(target_os = "linux", feature = "audio"))]
 fn main() -> std::process::ExitCode {
     use measurement::{Port, measure};
     use std::sync::Arc;

@@ -4,6 +4,9 @@
 #[path = "../examples/audio_lifecycle_probe/measurement.rs"]
 mod measurement;
 
+#[path = "../examples/audio_lifecycle_probe/trace.rs"]
+mod trace;
+
 use measurement::{Port, measure};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
