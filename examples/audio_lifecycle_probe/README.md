@@ -91,13 +91,15 @@ accessing host audio. These controls are not native-device acceptance.
 
 ## Playback completion and cancellation
 
-Playback now waits for pending frames with cancellation checks instead
-of calling the native blocking drain function. A prepared stream is
+Playback now observes delay and stream state with cancellation checks
+instead of calling the native blocking drain function. A prepared stream is
 started before waiting, including a short buffer that did not start
 automatically. Cancellation stops waiting and explicitly drops queued
-frames; ordinary completion waits until no pending frames remain before
-dropping and closing the PCM. Start, delay-query and stop errors reach
-the caller. An end-of-playback underrun is treated as an empty queue.
+frames; ordinary completion waits for nonpositive delay or an exhausted
+stream before dropping and closing the PCM. Delay includes fixed device
+latency and need not reach zero after underrun, so the PCM's underrun
+state also establishes completion even when the delay query succeeds
+with a positive value. Start, delay-query and stop errors reach the caller.
 
 The `finish` stage covers this wait, followed by a separate `drop` stage
 for the native stop call. The loop pauses for 10 ms between queries;
