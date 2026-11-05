@@ -77,7 +77,15 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
     for (port, operations) in [
         (
             "Emit",
-            vec!["open", "configure", "io", "write", "drain", "close"],
+            vec![
+                "open",
+                "configure",
+                "io",
+                "write",
+                "finish",
+                "drop",
+                "close",
+            ],
         ),
         (
             "Listen",

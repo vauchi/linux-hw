@@ -7,13 +7,20 @@
 //! reaches every desktop; a PipeWire-native port comes with the camera
 //! preview's libpipewire dependency (private#1036).
 use crate::ports::AudioBackend;
-use alsa::pcm::{Access, Format, HwParams, PCM};
+use alsa::pcm::{Access, Format, HwParams, PCM, State};
 use alsa::{Direction, ValueOr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+mod playback;
 mod trace;
+use playback::{PlaybackTail, wait_for_playback};
 use trace::{AudioTrace, TracedPcm};
+
+// INLINE_TEST_REQUIRED: tests/unit exercises this private native port without exporting it.
+#[cfg(test)]
+#[path = "../tests/unit/playback_tail.rs"]
+mod playback_tail_tests;
 
 const DEVICE: &str = "default";
 /// Frames handed to the device per write or read. Native calls, including
@@ -104,10 +111,43 @@ fn emit(
         }
         Ok::<(), String>(())
     })?;
-    if !cancelled.load(Ordering::SeqCst) {
-        let _ = trace.stage("drain", || pcm.drain());
+    let finished = trace.stage("finish", || {
+        wait_for_playback(&mut PcmTail(&pcm), cancelled)
+    });
+    let stopped = trace
+        .stage("drop", || PCM::drop(&pcm))
+        .map_err(|error| format!("ALSA playback stop: {error}"));
+    finished.and(stopped)
+}
+
+struct PcmTail<'a>(&'a PCM);
+
+impl PlaybackTail for PcmTail<'_> {
+    fn start_if_needed(&mut self) -> Result<(), String> {
+        if self.0.state() == State::Prepared {
+            self.0
+                .start()
+                .map_err(|error| format!("ALSA playback start: {error}"))?;
+        }
+        Ok(())
     }
-    Ok(())
+
+    fn pending_frames(&mut self) -> Result<alsa::pcm::Frames, String> {
+        match self.0.delay() {
+            Ok(frames) => Ok(frames),
+            Err(error)
+                if std::io::Error::from_raw_os_error(error.errno()).kind()
+                    == std::io::ErrorKind::BrokenPipe =>
+            {
+                Ok(0)
+            }
+            Err(error) => Err(format!("ALSA playback delay: {error}")),
+        }
+    }
+
+    fn wait(&mut self) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn record(
