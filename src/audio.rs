@@ -38,7 +38,8 @@ struct Recording {
 pub struct AudioSession {
     emitter: Executor<Emission>,
     listener: Executor<Recording>,
-    cancellations: Vec<Arc<AtomicBool>>,
+    emission_cancellation: Option<Arc<AtomicBool>>,
+    recording_cancellation: Option<Arc<AtomicBool>>,
 }
 
 impl AudioSession {
@@ -92,7 +93,8 @@ impl AudioSession {
         Ok(Self {
             emitter: Executor::new(emitter, &runtime, limits)?,
             listener: Executor::new(listener, &runtime, limits)?,
-            cancellations: Vec::new(),
+            emission_cancellation: None,
+            recording_cancellation: None,
         })
     }
 
@@ -106,7 +108,7 @@ impl AudioSession {
         if samples.len() > MAX_SAMPLES || sample_rate == 0 {
             return Err(DeliveryError::PayloadTooLarge);
         }
-        let cancelled = self.fresh_cancellation();
+        let cancelled = Self::replace_cancellation(&mut self.emission_cancellation);
         self.emitter.start(Emission {
             samples: Arc::new(samples),
             sample_rate,
@@ -120,7 +122,7 @@ impl AudioSession {
         if timeout_ms > MAX_LISTEN_MS {
             return Err(DeliveryError::PayloadTooLarge);
         }
-        let cancelled = self.fresh_cancellation();
+        let cancelled = Self::replace_cancellation(&mut self.recording_cancellation);
         self.listener.start(Recording {
             timeout: Duration::from_millis(timeout_ms),
             cancelled,
@@ -154,14 +156,22 @@ impl AudioSession {
         self.listener.shutdown().await
     }
 
-    fn fresh_cancellation(&mut self) -> Arc<AtomicBool> {
+    fn replace_cancellation(slot: &mut Option<Arc<AtomicBool>>) -> Arc<AtomicBool> {
         let cancelled = Arc::new(AtomicBool::new(false));
-        self.cancellations.push(cancelled.clone());
+        if let Some(previous) = slot.replace(cancelled.clone()) {
+            previous.store(true, Ordering::SeqCst);
+        }
         cancelled
     }
 
     fn cancel_all(&mut self) {
-        for cancelled in self.cancellations.drain(..) {
+        for cancelled in [
+            self.emission_cancellation.take(),
+            self.recording_cancellation.take(),
+        ]
+        .into_iter()
+        .flatten()
+        {
             cancelled.store(true, Ordering::SeqCst);
         }
     }
