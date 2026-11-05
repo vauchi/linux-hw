@@ -11,6 +11,7 @@ struct QueuedAudio {
     pending: VecDeque<Result<Frames, String>>,
     remaining: Frames,
     started: bool,
+    exhausted: bool,
     start_error: Option<String>,
     cancel_on_wait: bool,
     cancelled: Arc<AtomicBool>,
@@ -22,6 +23,7 @@ impl QueuedAudio {
             pending: frames.iter().copied().map(Ok).collect(),
             remaining: frames.first().copied().unwrap_or(0),
             started: false,
+            exhausted: false,
             start_error: None,
             cancel_on_wait: false,
             cancelled: Arc::new(AtomicBool::new(false)),
@@ -40,9 +42,13 @@ impl PlaybackTail for QueuedAudio {
         self.start_error.clone().map_or(Ok(()), Err)
     }
 
-    fn pending_frames(&mut self) -> Result<Frames, String> {
+    fn delay_frames(&mut self) -> Result<Frames, String> {
         self.remaining = self.pending.pop_front().unwrap_or(Ok(0))?;
         Ok(self.remaining)
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.exhausted
     }
 
     fn wait(&mut self) {
@@ -68,6 +74,16 @@ fn ordinary_completion_waits_until_all_queued_frames_have_played() {
     assert_eq!(audio.finish(), Ok(Completion::Drained));
     assert_eq!(audio.remaining, 0);
     assert!(audio.started);
+}
+
+// @internal
+#[test]
+fn an_exhausted_stream_completes_even_when_fixed_latency_stays_positive() {
+    let mut audio = QueuedAudio::new(&[2_400, 0]);
+    audio.exhausted = true;
+    audio.cancel_on_wait = true;
+    assert_eq!(audio.finish(), Ok(Completion::Drained));
+    assert_eq!(audio.remaining, 2_400);
 }
 
 // @internal

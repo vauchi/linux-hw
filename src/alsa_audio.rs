@@ -132,7 +132,7 @@ impl PlaybackTail for PcmTail<'_> {
         Ok(())
     }
 
-    fn pending_frames(&mut self) -> Result<alsa::pcm::Frames, String> {
+    fn delay_frames(&mut self) -> Result<alsa::pcm::Frames, String> {
         match self.0.delay() {
             Ok(frames) => Ok(frames),
             Err(error)
@@ -143,6 +143,10 @@ impl PlaybackTail for PcmTail<'_> {
             }
             Err(error) => Err(format!("ALSA playback delay: {error}")),
         }
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.0.state() == State::XRun
     }
 
     fn wait(&mut self) {
