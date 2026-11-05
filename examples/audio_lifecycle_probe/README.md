@@ -49,3 +49,42 @@ backend return, not downstream audio-server buffering or acoustic silence.
 Tests inject delayed exit, device refusal, and an operation that returns
 only during cleanup. The last case must remain inconclusive, so cleanup
 cannot create a false replacement success.
+
+## Locating an unfinished native call
+
+Set `VAUCHI_AUDIO_TRACE=1` to enable stage timing in the existing ALSA
+backend without `strace`:
+
+```bash
+VAUCHI_AUDIO_TRACE=1 timeout --kill-after=3s 45s \
+  just exec-in-repo linux-hw 'target/debug/examples/audio_lifecycle_probe'
+```
+
+Run from the authorized desktop audio session, on AC. Build the example
+first as above. This does not change device permissions or ALSA settings.
+The flag is off unless its value is exactly `1`.
+
+The additional stderr records contain only a call ID, port, stage,
+entry/return edge and milliseconds elapsed since that call began. They
+contain no samples, paths, device payloads or encoded contact data.
+Call IDs distinguish overlapping operations. A `return` edge means the
+stage returned, including an error; it does not mean success.
+
+Stages cover `operation`, `open`, `configure`, `io`, `write` or `read`,
+`start` for capture, `recover`, `retry_write`, `drain` and `close`.
+The read/write stages cover their whole loops rather than each chunk.
+Recovery appears only when needed. Close surrounds the actual PCM
+destructor, including error paths after a successful open. The enclosing
+operation returns only after that cleanup. A failed open has no close.
+
+For a call still unfinished at the probe deadline, retain its last entry
+without a matching return. This identifies a region to investigate, not
+proof of permanent deadlock. Stage output also changes timing and can
+wait on stderr; keep the output consumer draining and verify a fix with
+the ordinary probe afterward. Do not treat a passing diagnostic run as
+evidence that an earlier unfinished call is fixed.
+
+The stage tests run the real backend in subprocesses with a temporary
+ALSA null-device configuration or a deliberately unavailable plugin.
+They verify diagnostic boundaries and unchanged API results without
+accessing host audio. These controls are not native-device acceptance.

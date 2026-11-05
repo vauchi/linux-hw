@@ -74,6 +74,18 @@ test:unit:
   script:
     - cargo test --features fake-bluez,qr-decode
 
+test:audio:
+  extends: [.rust-runner, .mr-or-main, .timeout-standard]
+  stage: test
+  tags: [linux, rust, self-hosted]
+  needs:
+    - job: lint:format
+      optional: true
+  script:
+    - cargo clippy --locked --all-targets --features audio -- -D warnings
+    - cargo test --locked --features audio
+    - cargo build --locked --features audio --example audio_lifecycle_probe
+
 # cargo-deny on MRs; cargo-vet on MRs that change dependencies and on
 # main, both against the committed lockfile. Exemptions only, never
 # local audits (VSC01): a dependency change commits its regenerated

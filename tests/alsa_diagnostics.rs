@@ -30,6 +30,8 @@ fn run_worker(trace: &str, invalid_device: bool) -> Output {
 }
 
 fn stages(output: &Output, port: &str) -> Vec<(String, String)> {
+    let mut call = None;
+    let mut previous_elapsed = 0.0;
     String::from_utf8(output.stderr.clone())
         .unwrap()
         .lines()
@@ -42,8 +44,10 @@ fn stages(output: &Output, port: &str) -> Vec<(String, String)> {
                     .to_owned()
             };
             let elapsed: f64 = field("elapsed_ms=").parse().unwrap();
-            assert!(elapsed.is_finite() && elapsed >= 0.0);
-            let _: u64 = field("call=").parse().unwrap();
+            assert!(elapsed.is_finite() && elapsed >= previous_elapsed);
+            previous_elapsed = elapsed;
+            let id: u64 = field("call=").parse().unwrap();
+            assert_eq!(*call.get_or_insert(id), id);
             (field("stage="), field("edge="))
         })
         .collect()
@@ -84,6 +88,18 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
         expected.push(("operation".into(), "return".into()));
         assert_eq!(stages(&output, port), expected);
     }
+    let ids: std::collections::HashSet<_> = String::from_utf8(output.stderr)
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with("audio_stage "))
+        .map(|line| {
+            line.split_whitespace()
+                .find(|field| field.starts_with("call="))
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(ids.len(), 2);
 }
 
 #[test]
