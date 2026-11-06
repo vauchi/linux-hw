@@ -141,6 +141,24 @@ impl FakeBlueZ {
             .map(drop)
     }
 
+    /// A write carrying the exchanged MTU, as BlueZ's `WriteValue` options do.
+    pub async fn write_with_mtu(
+        &mut self,
+        address: &str,
+        uuid: &str,
+        data: &[u8],
+        mtu: u16,
+    ) -> Result<(), zbus::Error> {
+        let options = HashMap::from([
+            ("device", Variant::from(device_path(address))),
+            ("type", Variant::from("request")),
+            ("mtu", Variant::from(mtu)),
+        ]);
+        self.call_characteristic(uuid, "WriteValue", &(data, options))
+            .await
+            .map(drop)
+    }
+
     pub async fn read(&mut self, uuid: &str, offset: u16) -> Result<Vec<u8>, String> {
         let options = HashMap::from([("offset", Variant::from(offset))]);
         let reply = self

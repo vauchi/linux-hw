@@ -171,6 +171,44 @@ async fn a_central_write_is_reported_with_its_address_on_the_inbound_link() {
     advertiser.shutdown().await.unwrap();
 }
 
+// A peripheral has no other way to learn the MTU, and without it Core sends at
+// the smallest size (vauchi/private#796).
+// @internal
+#[tokio::test]
+async fn the_mtu_a_central_write_carries_is_reported_once_before_the_write() {
+    let (mut bluez, mut advertiser) = advertising(Script::default()).await;
+    bluez
+        .write_with_mtu(CENTRAL, DATA_WRITE, &[1], 247)
+        .await
+        .unwrap();
+    bluez
+        .write_with_mtu(CENTRAL, DATA_WRITE, &[2], 247)
+        .await
+        .unwrap();
+    bluez.write(CENTRAL, DATA_WRITE, &[3]).await.unwrap();
+
+    assert_eq!(
+        advertiser.next_event().await,
+        Some(Event::BleMtuNegotiated {
+            device_id: CENTRAL.into(),
+            mtu: 247,
+        })
+    );
+    assert_eq!(
+        advertiser.next_event().await,
+        Some(inbound(DATA_WRITE, &[1]))
+    );
+    assert_eq!(
+        advertiser.next_event().await,
+        Some(inbound(DATA_WRITE, &[2]))
+    );
+    assert_eq!(
+        advertiser.next_event().await,
+        Some(inbound(DATA_WRITE, &[3]))
+    );
+    advertiser.shutdown().await.unwrap();
+}
+
 // @internal
 #[tokio::test]
 async fn a_write_longer_than_an_attribute_value_is_refused_and_not_reported() {
