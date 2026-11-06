@@ -148,7 +148,7 @@ impl FakeBlueZ {
         uuid: &str,
         data: &[u8],
         mtu: u16,
-    ) -> Result<(), zbus::Error> {
+    ) -> Result<(), String> {
         let options = HashMap::from([
             ("device", Variant::from(device_path(address))),
             ("type", Variant::from("request")),
