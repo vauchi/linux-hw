@@ -120,6 +120,7 @@ async fn advertise(
         payload,
         subscribed: HashSet::new(),
         addresses: HashMap::new(),
+        reported_mtu: None,
     };
     let registration = register(bus, adapter.as_str());
     tokio::pin!(registration);
@@ -181,6 +182,7 @@ struct Peripheral {
     payload: Vec<u8>,
     subscribed: HashSet<usize>,
     addresses: HashMap<OwnedObjectPath, String>,
+    reported_mtu: Option<u16>,
 }
 
 impl Peripheral {
@@ -321,6 +323,19 @@ impl Peripheral {
             Some(device) => self.address(bus, device).await,
             None => String::new(),
         };
+        // BlueZ tells a GATT server the exchanged MTU only in a write's options.
+        if let Some(mtu) = property::<u16>(&options, "mtu")
+            && self.reported_mtu != Some(mtu)
+        {
+            self.reported_mtu = Some(mtu);
+            let negotiated = Event::BleMtuNegotiated {
+                device_id: device_id.clone(),
+                mtu: u32::from(mtu),
+            };
+            if let Flow::Stop = deliver(events, negotiated).await {
+                return Ok(Flow::Stop);
+            }
+        }
         Ok(deliver(
             events,
             Event::BleCharacteristicNotified {
