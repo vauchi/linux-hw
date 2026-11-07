@@ -14,13 +14,18 @@ use std::time::{Duration, Instant};
 
 mod playback;
 mod trace;
-use playback::{PlaybackTail, wait_for_playback, write_samples};
+use playback::{PlaybackTail, finish_with_silence, wait_for_playback, write_samples};
 use trace::{AudioTrace, TracedPcm};
 
 // INLINE_TEST_REQUIRED: tests/unit exercises this private native port without exporting it.
 #[cfg(test)]
 #[path = "../tests/unit/playback_tail.rs"]
 mod playback_tail_tests;
+
+// INLINE_TEST_REQUIRED: tests/unit covers the private ALSA boundary without exporting it.
+#[cfg(test)]
+#[path = "../tests/unit/playback_latency.rs"]
+mod playback_latency_tests;
 
 const DEVICE: &str = "default";
 /// Frames handed to the device per write or read. Native calls, including
@@ -117,14 +122,23 @@ fn emit(
         }
     };
     trace.stage("write", || write_samples(samples, cancelled, &mut write))?;
-    // Pulse can retain positive fixed latency after underrun. A known silent
-    // suffix lets delay account for the last real sample without blocking drain.
-    let padding = if samples.is_empty() { 0 } else { CHUNK_FRAMES };
-    trace.stage("padding", || {
-        write_samples(&[0.0; CHUNK_FRAMES][..padding], cancelled, &mut write)
-    })?;
     let finished = trace.stage("finish", || {
-        wait_for_playback(&mut PcmTail(&pcm), cancelled, padding as alsa::pcm::Frames)
+        let mut tail = PcmTail(&pcm, trace);
+        if samples.is_empty() {
+            return wait_for_playback(&mut tail, cancelled, 0);
+        }
+        finish_with_silence(&mut tail, cancelled, |frames| {
+            trace.silent_tail(frames);
+            trace.stage("padding", || {
+                let mut remaining = frames;
+                while remaining > 0 && !cancelled.load(Ordering::SeqCst) {
+                    let count = remaining.min(CHUNK_FRAMES as alsa::pcm::Frames) as usize;
+                    write_samples(&[0.0; CHUNK_FRAMES][..count], cancelled, &mut write)?;
+                    remaining -= count as alsa::pcm::Frames;
+                }
+                Ok(())
+            })
+        })
     });
     let stopped = trace
         .stage("drop", || PCM::drop(&pcm))
@@ -132,7 +146,7 @@ fn emit(
     finished.and(stopped)
 }
 
-struct PcmTail<'a>(&'a PCM);
+struct PcmTail<'a>(&'a PCM, &'a AudioTrace);
 
 impl PlaybackTail for PcmTail<'_> {
     fn start_if_needed(&mut self) -> Result<(), String> {
@@ -159,16 +173,18 @@ impl PlaybackTail for PcmTail<'_> {
     }
 
     fn delay_frames(&mut self) -> Result<alsa::pcm::Frames, String> {
-        match self.0.delay() {
-            Ok(frames) => Ok(frames),
+        let frames = match self.0.delay() {
+            Ok(frames) => frames,
             Err(error)
                 if std::io::Error::from_raw_os_error(error.errno()).kind()
                     == std::io::ErrorKind::BrokenPipe =>
             {
-                Ok(0)
+                0
             }
-            Err(error) => Err(format!("ALSA playback delay: {error}")),
-        }
+            Err(error) => return Err(format!("ALSA playback delay: {error}")),
+        };
+        self.1.playback_progress(self.0, frames);
+        Ok(frames)
     }
 
     fn is_exhausted(&self) -> bool {

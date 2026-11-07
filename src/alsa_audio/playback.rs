@@ -18,6 +18,30 @@ pub(super) trait PlaybackTail {
     fn wait(&mut self);
 }
 
+pub(super) fn finish_with_silence(
+    playback: &mut impl PlaybackTail,
+    cancelled: &AtomicBool,
+    append_silence: impl FnOnce(Frames) -> Result<(), String>,
+) -> Result<Completion, String> {
+    if cancelled.load(Ordering::SeqCst) {
+        return Ok(Completion::Cancelled);
+    }
+    playback.start_if_needed()?;
+    playback.refresh_progress()?;
+    if playback.is_exhausted() {
+        return Ok(Completion::Drained);
+    }
+    // #1029: the silent suffix must cover the route's reported latency,
+    // which can exceed one write chunk on a physical output device.
+    let frames = playback
+        .delay_frames()?
+        .max(0)
+        .checked_add(super::CHUNK_FRAMES as Frames)
+        .ok_or("ALSA playback latency exceeds the frame range")?;
+    append_silence(frames)?;
+    wait_for_playback(playback, cancelled, frames)
+}
+
 pub(super) fn wait_for_playback(
     playback: &mut impl PlaybackTail,
     cancelled: &AtomicBool,

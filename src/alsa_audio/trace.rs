@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use alsa::pcm::PCM;
+use alsa::pcm::{Frames, PCM};
+use std::cell::Cell;
 use std::io::Write;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 static NEXT_CALL: AtomicU64 = AtomicU64::new(1);
 
@@ -13,6 +14,7 @@ pub(super) struct AudioTrace {
     call: u64,
     port: &'static str,
     started: Option<Instant>,
+    last_progress: Cell<Option<Duration>>,
 }
 
 impl AudioTrace {
@@ -26,6 +28,7 @@ impl AudioTrace {
             },
             port,
             started: enabled.then(Instant::now),
+            last_progress: Cell::new(None),
         }
     }
 
@@ -81,6 +84,38 @@ impl AudioTrace {
             self.call,
             self.port
         );
+    }
+
+    pub(super) fn playback_progress(&self, pcm: &PCM, frames: Frames) {
+        let Some(started) = self.started else { return };
+        let elapsed = started.elapsed();
+        if self
+            .last_progress
+            .get()
+            .is_some_and(|last| elapsed - last < Duration::from_millis(250))
+        {
+            return;
+        }
+        self.last_progress.set(Some(elapsed));
+        let _ = writeln!(
+            std::io::stderr(),
+            "audio_progress call={} port={} state={:?} delay_frames={frames} elapsed_ms={:.3}",
+            self.call,
+            self.port,
+            pcm.state(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    pub(super) fn silent_tail(&self, frames: Frames) {
+        if self.started.is_some() {
+            let _ = writeln!(
+                std::io::stderr(),
+                "audio_tail call={} port={} trailing_silence_frames={frames}",
+                self.call,
+                self.port
+            );
+        }
     }
 }
 

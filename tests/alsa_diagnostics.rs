@@ -82,7 +82,6 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
                 "configure",
                 "io",
                 "write",
-                "padding",
                 "finish",
                 "drop",
                 "close",
@@ -95,6 +94,13 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
     ] {
         let mut expected = vec![("operation".into(), "enter".into())];
         expected.extend(paired(&operations));
+        if port == "Emit" {
+            let finish = expected
+                .iter()
+                .position(|event| event == &("finish".into(), "enter".into()))
+                .unwrap();
+            expected.splice(finish + 1..finish + 1, paired(&["padding"]));
+        }
         expected.push(("operation".into(), "return".into()));
         assert_eq!(stages(&output, port), expected);
     }
@@ -142,6 +148,28 @@ fn playback_buffer_is_bounded_to_one_hundred_milliseconds_on_the_null_device() {
         period <= buffer,
         "period exceeds the buffer: {configuration}"
     );
+}
+
+// @internal — #1029: a failed desktop run must expose latency and suffix frame counts.
+#[test]
+fn enabled_trace_exposes_playback_progress_and_the_queued_silent_suffix() {
+    let output = run_worker("1", false);
+    assert_eq!(output.status.code(), Some(0));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let frames = |prefix: &str, field: &str| -> i64 {
+        stderr
+            .lines()
+            .find(|line| line.starts_with(prefix) && line.contains("port=Emit "))
+            .unwrap_or_else(|| panic!("missing {prefix}: {stderr}"))
+            .split_whitespace()
+            .find_map(|part| part.strip_prefix(field))
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let delay = frames("audio_progress ", "delay_frames=");
+    let suffix = frames("audio_tail ", "trailing_silence_frames=");
+    assert!(suffix > delay.max(0));
 }
 
 // @internal
