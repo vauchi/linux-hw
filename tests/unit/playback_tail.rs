@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::playback::{Completion, PlaybackTail, wait_for_playback};
+use super::playback::{Completion, PlaybackTail, wait_for_playback, write_samples};
 use alsa::pcm::Frames;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ impl QueuedAudio {
 
     fn finish(&mut self) -> Result<Completion, String> {
         let cancelled = self.cancelled.clone();
-        wait_for_playback(self, &cancelled)
+        wait_for_playback(self, &cancelled, 0)
     }
 }
 
@@ -152,4 +152,77 @@ fn fresh_exhaustion_completes_before_a_failing_delay_query() {
         .push_back(Err("delay unavailable after exhaustion".into()));
     audio.exhausted_on_refresh = true;
     assert_eq!(audio.finish(), Ok(Completion::Drained));
+}
+
+// @internal — a positive fixed device latency must not hide real-sample completion.
+#[test]
+fn trailing_silence_allows_completion_without_waiting_for_zero_delay() {
+    let mut audio = QueuedAudio::new(&[2_048, 1_025, 1_024, 133]);
+    let cancelled = audio.cancelled.clone();
+    assert_eq!(
+        wait_for_playback(&mut audio, &cancelled, 1_024),
+        Ok(Completion::Drained)
+    );
+    assert_eq!(audio.remaining, 1_024);
+}
+
+// @internal — silence queued after the payload does not make cancellation successful completion.
+#[test]
+fn cancellation_still_interrupts_a_tail_containing_silence() {
+    let mut audio = QueuedAudio::new(&[2_048, 1_024]);
+    audio.cancel_on_wait = true;
+    let cancelled = audio.cancelled.clone();
+    assert_eq!(
+        wait_for_playback(&mut audio, &cancelled, 1_024),
+        Ok(Completion::Cancelled)
+    );
+    assert_eq!(audio.remaining, 2_048);
+}
+
+// @internal — completion accounting requires every submitted payload frame to be queued.
+#[test]
+fn partial_writes_preserve_every_payload_frame_in_order() {
+    let samples: Vec<f32> = (0..2_500).map(|value| value as f32).collect();
+    let mut written = Vec::new();
+    write_samples(&samples, &AtomicBool::new(false), |chunk| {
+        let count = chunk.len().min(137);
+        written.extend_from_slice(&chunk[..count]);
+        Ok(count)
+    })
+    .unwrap();
+    assert_eq!(written, samples);
+}
+
+// @internal
+#[test]
+fn a_zero_frame_write_fails_instead_of_spinning_or_losing_samples() {
+    assert_eq!(
+        write_samples(&[1.0], &AtomicBool::new(false), |_| Ok(0)),
+        Err("ALSA playback made no write progress".into())
+    );
+}
+
+// @internal
+#[test]
+fn cancellation_between_partial_writes_leaves_the_remainder_unsubmitted() {
+    let cancelled = AtomicBool::new(false);
+    let mut written = Vec::new();
+    write_samples(&[1.0, 2.0], &cancelled, |chunk| {
+        written.push(chunk[0]);
+        cancelled.store(true, Ordering::SeqCst);
+        Ok(1)
+    })
+    .unwrap();
+    assert_eq!(written, vec![1.0]);
+}
+
+// @internal
+#[test]
+fn write_failure_reaches_the_caller_without_a_successful_tail() {
+    assert_eq!(
+        write_samples(&[1.0], &AtomicBool::new(false), |_| Err(
+            "device failed".into()
+        )),
+        Err("device failed".into())
+    );
 }

@@ -21,6 +21,7 @@ pub(super) trait PlaybackTail {
 pub(super) fn wait_for_playback(
     playback: &mut impl PlaybackTail,
     cancelled: &AtomicBool,
+    trailing_silence: Frames,
 ) -> Result<Completion, String> {
     if cancelled.load(Ordering::SeqCst) {
         return Ok(Completion::Cancelled);
@@ -31,9 +32,28 @@ pub(super) fn wait_for_playback(
             return Ok(Completion::Cancelled);
         }
         playback.refresh_progress()?;
-        if playback.is_exhausted() || playback.delay_frames()? <= 0 {
+        if playback.is_exhausted() || playback.delay_frames()? <= trailing_silence {
             return Ok(Completion::Drained);
         }
         playback.wait();
     }
+}
+
+pub(super) fn write_samples(
+    mut samples: &[f32],
+    cancelled: &AtomicBool,
+    mut write: impl FnMut(&[f32]) -> Result<usize, String>,
+) -> Result<(), String> {
+    while !samples.is_empty() && !cancelled.load(Ordering::SeqCst) {
+        let chunk = &samples[..samples.len().min(super::CHUNK_FRAMES)];
+        let written = write(chunk)?;
+        if written == 0 {
+            return Err("ALSA playback made no write progress".into());
+        }
+        samples = samples
+            .get(written..)
+            .filter(|_| written <= chunk.len())
+            .ok_or("ALSA playback reported an invalid write count")?;
+    }
+    Ok(())
 }

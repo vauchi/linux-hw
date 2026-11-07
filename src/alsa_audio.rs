@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 mod playback;
 mod trace;
-use playback::{PlaybackTail, wait_for_playback};
+use playback::{PlaybackTail, wait_for_playback, write_samples};
 use trace::{AudioTrace, TracedPcm};
 
 // INLINE_TEST_REQUIRED: tests/unit exercises this private native port without exporting it.
@@ -52,6 +52,16 @@ fn open(
         params
             .set_access(Access::RWInterleaved)
             .map_err(|e| format!("ALSA access: {e}"))?;
+        if direction == Direction::Playback {
+            // Unconstrained Pulse defaults can select a multi-second buffer.
+            // A short emission then remains below the server's prebuffer.
+            params
+                .set_period_size_near(CHUNK_FRAMES as alsa::pcm::Frames, ValueOr::Nearest)
+                .map_err(|error| format!("ALSA playback period: {error}"))?;
+            params
+                .set_buffer_size_near((4 * CHUNK_FRAMES) as alsa::pcm::Frames)
+                .map_err(|error| format!("ALSA playback buffer: {error}"))?;
+        }
         pcm.hw_params(&params)
             .map_err(|e| format!("ALSA hw_params: {e}"))?;
         params.get_rate().map_err(|e| format!("ALSA rate: {e}"))
@@ -92,28 +102,29 @@ fn emit(
     let io = trace
         .stage("io", || pcm.io_f32())
         .map_err(|e| format!("ALSA io: {e}"))?;
-    trace.stage("write", || {
-        for chunk in samples.chunks(CHUNK_FRAMES) {
-            if cancelled.load(Ordering::SeqCst) {
-                break;
-            }
-            match io.writei(chunk) {
-                Ok(_) => {}
-                Err(e) => {
-                    // An underrun is recovered and the chunk retried once.
-                    trace
-                        .stage("recover", || pcm.try_recover(e, true))
-                        .map_err(|e| format!("ALSA play error: {e}"))?;
-                    trace
-                        .stage("retry_write", || io.writei(chunk))
-                        .map_err(|e| format!("ALSA play error: {e}"))?;
-                }
+    let mut write = |chunk: &[f32]| {
+        match io.writei(chunk) {
+            Ok(written) => Ok(written),
+            Err(e) => {
+                // An underrun is recovered and the chunk retried once.
+                trace
+                    .stage("recover", || pcm.try_recover(e, true))
+                    .map_err(|e| format!("ALSA play error: {e}"))?;
+                trace
+                    .stage("retry_write", || io.writei(chunk))
+                    .map_err(|e| format!("ALSA play error: {e}"))
             }
         }
-        Ok::<(), String>(())
+    };
+    trace.stage("write", || write_samples(samples, cancelled, &mut write))?;
+    // Pulse can retain positive fixed latency after underrun. A known silent
+    // suffix lets delay account for the last real sample without blocking drain.
+    let padding = if samples.is_empty() { 0 } else { CHUNK_FRAMES };
+    trace.stage("padding", || {
+        write_samples(&[0.0; CHUNK_FRAMES][..padding], cancelled, &mut write)
     })?;
     let finished = trace.stage("finish", || {
-        wait_for_playback(&mut PcmTail(&pcm), cancelled)
+        wait_for_playback(&mut PcmTail(&pcm), cancelled, padding as alsa::pcm::Frames)
     });
     let stopped = trace
         .stage("drop", || PCM::drop(&pcm))

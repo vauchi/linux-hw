@@ -82,6 +82,7 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
                 "configure",
                 "io",
                 "write",
+                "padding",
                 "finish",
                 "drop",
                 "close",
@@ -109,6 +110,38 @@ fn enabled_trace_reports_both_operations_through_pcm_cleanup() {
         })
         .collect();
     assert_eq!(ids.len(), 2);
+}
+
+// @internal — native playback configuration must not select a multi-second prebuffer.
+#[test]
+fn playback_buffer_is_bounded_to_one_hundred_milliseconds_on_the_null_device() {
+    let output = run_worker("1", false);
+    assert_eq!(output.status.code(), Some(0));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let configuration = stderr
+        .lines()
+        .find(|line| line.starts_with("audio_configuration ") && line.contains("port=Emit "))
+        .expect("playback configuration metadata");
+    let field = |name: &str| -> u64 {
+        configuration
+            .split_whitespace()
+            .find_map(|word| word.strip_prefix(name))
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let rate = field("rate=");
+    let buffer = field("buffer_frames=");
+    let period = field("period_frames=");
+    assert!(rate > 0 && buffer > 0 && period > 0);
+    assert!(
+        buffer * 1000 <= rate * 100,
+        "playback buffer exceeds 100 ms: {configuration}"
+    );
+    assert!(
+        period <= buffer,
+        "period exceeds the buffer: {configuration}"
+    );
 }
 
 // @internal
