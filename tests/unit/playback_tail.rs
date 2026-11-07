@@ -13,6 +13,8 @@ struct QueuedAudio {
     started: bool,
     exhausted: bool,
     start_error: Option<String>,
+    refresh_error: Option<String>,
+    exhausted_on_refresh: bool,
     cancel_on_wait: bool,
     cancelled: Arc<AtomicBool>,
 }
@@ -25,6 +27,8 @@ impl QueuedAudio {
             started: false,
             exhausted: false,
             start_error: None,
+            refresh_error: None,
+            exhausted_on_refresh: false,
             cancel_on_wait: false,
             cancelled: Arc::new(AtomicBool::new(false)),
         }
@@ -45,6 +49,13 @@ impl PlaybackTail for QueuedAudio {
     fn delay_frames(&mut self) -> Result<Frames, String> {
         self.remaining = self.pending.pop_front().unwrap_or(Ok(0))?;
         Ok(self.remaining)
+    }
+
+    fn refresh_progress(&mut self) -> Result<(), String> {
+        if self.exhausted_on_refresh {
+            self.exhausted = true;
+        }
+        self.refresh_error.clone().map_or(Ok(()), Err)
     }
 
     fn is_exhausted(&self) -> bool {
@@ -91,6 +102,7 @@ fn an_exhausted_stream_completes_even_when_fixed_latency_stays_positive() {
 fn an_already_cancelled_call_does_not_start_the_pending_stream() {
     let mut audio = QueuedAudio::new(&[48_000, 0]);
     audio.cancelled.store(true, Ordering::SeqCst);
+    audio.refresh_error = Some("cancelled calls must not query progress".into());
     assert_eq!(audio.finish(), Ok(Completion::Cancelled));
     assert!(!audio.started);
     assert_eq!(audio.remaining, 48_000);
@@ -111,4 +123,33 @@ fn a_start_failure_reaches_the_caller() {
     audio.start_error = Some("stream start failed".into());
     assert_eq!(audio.finish(), Err("stream start failed".into()));
     assert_eq!(audio.remaining, 48_000);
+}
+
+// @internal — plugin state may remain cached while delay includes fixed device latency.
+#[test]
+fn fresh_progress_completes_an_exhausted_stream_with_positive_latency() {
+    let mut audio = QueuedAudio::new(&[2_400]);
+    audio.exhausted_on_refresh = true;
+    audio.cancel_on_wait = true;
+    assert_eq!(audio.finish(), Ok(Completion::Drained));
+    assert_eq!(audio.remaining, 2_400);
+}
+
+// @internal
+#[test]
+fn a_progress_refresh_failure_reaches_the_caller() {
+    let mut audio = QueuedAudio::new(&[0]);
+    audio.refresh_error = Some("progress query failed".into());
+    assert_eq!(audio.finish(), Err("progress query failed".into()));
+}
+
+// @internal — a completed stream need not support another delay query.
+#[test]
+fn fresh_exhaustion_completes_before_a_failing_delay_query() {
+    let mut audio = QueuedAudio::new(&[]);
+    audio
+        .pending
+        .push_back(Err("delay unavailable after exhaustion".into()));
+    audio.exhausted_on_refresh = true;
+    assert_eq!(audio.finish(), Ok(Completion::Drained));
 }

@@ -56,6 +56,7 @@ fn open(
             .map_err(|e| format!("ALSA hw_params: {e}"))?;
         params.get_rate().map_err(|e| format!("ALSA rate: {e}"))
     })?;
+    trace.configuration(&pcm);
     Ok((pcm, negotiated))
 }
 
@@ -130,6 +131,20 @@ impl PlaybackTail for PcmTail<'_> {
                 .map_err(|error| format!("ALSA playback start: {error}"))?;
         }
         Ok(())
+    }
+
+    fn refresh_progress(&mut self) -> Result<(), String> {
+        // Plugin state can be cached until its hardware pointer is refreshed.
+        match self.0.avail_update() {
+            Ok(_) => Ok(()),
+            Err(error)
+                if std::io::Error::from_raw_os_error(error.errno()).kind()
+                    == std::io::ErrorKind::BrokenPipe =>
+            {
+                Ok(())
+            }
+            Err(error) => Err(format!("ALSA playback progress: {error}")),
+        }
     }
 
     fn delay_frames(&mut self) -> Result<alsa::pcm::Frames, String> {

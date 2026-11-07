@@ -57,6 +57,31 @@ impl AudioTrace {
             trace: self,
         }
     }
+
+    pub(super) fn configuration(&self, pcm: &PCM) {
+        if self.started.is_none() {
+            return;
+        }
+        let details = (|| -> Result<String, alsa::Error> {
+            let hardware = pcm.hw_params_current()?;
+            let software = pcm.sw_params_current()?;
+            Ok(format!(
+                "rate={} buffer_frames={} period_frames={} start_threshold={} stop_threshold={}",
+                hardware.get_rate()?,
+                hardware.get_buffer_size()?,
+                hardware.get_period_size()?,
+                software.get_start_threshold()?,
+                software.get_stop_threshold()?
+            ))
+        })()
+        .unwrap_or_else(|error| format!("query_error={error}"));
+        let _ = writeln!(
+            std::io::stderr(),
+            "audio_configuration call={} port={} {details}",
+            self.call,
+            self.port
+        );
+    }
 }
 
 pub(super) struct TracedPcm<'a> {

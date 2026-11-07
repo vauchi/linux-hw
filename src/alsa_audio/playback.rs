@@ -12,6 +12,7 @@ pub(super) enum Completion {
 
 pub(super) trait PlaybackTail {
     fn start_if_needed(&mut self) -> Result<(), String>;
+    fn refresh_progress(&mut self) -> Result<(), String>;
     fn delay_frames(&mut self) -> Result<Frames, String>;
     fn is_exhausted(&self) -> bool;
     fn wait(&mut self);
@@ -29,7 +30,8 @@ pub(super) fn wait_for_playback(
         if cancelled.load(Ordering::SeqCst) {
             return Ok(Completion::Cancelled);
         }
-        if playback.delay_frames()? <= 0 || playback.is_exhausted() {
+        playback.refresh_progress()?;
+        if playback.is_exhausted() || playback.delay_frames()? <= 0 {
             return Ok(Completion::Drained);
         }
         playback.wait();
