@@ -190,3 +190,57 @@ fn immediate_success_is_not_sustained_completion_or_duplex_activity() {
         assert_eq!(report.errors, Vec::<String>::new());
     }
 }
+
+fn run_scripted_modes(status: &'static str, unfinished: usize) -> (bool, Vec<Mode>) {
+    let mut modes = Vec::new();
+    let success = acceptance::run_modes(|mode| {
+        modes.push(mode);
+        Ok(acceptance::Report {
+            status,
+            active_at_observation: true,
+            natural_return: mode == Mode::Completion,
+            return_ms: Some(1.0),
+            unfinished_after_cleanup: unfinished,
+            errors: Vec::new(),
+        })
+    });
+    (success, modes)
+}
+
+// @internal — successful measurements must include both acceptance modes.
+#[test]
+fn both_successful_modes_pass_the_complete_probe() {
+    assert_eq!(
+        run_scripted_modes("measured", 0),
+        (true, vec![Mode::Completion, Mode::Duplex])
+    );
+}
+
+// @internal — collect independent evidence after clean failure without hiding it.
+#[test]
+fn inconclusive_completion_with_clean_shutdown_still_measures_duplex_and_fails() {
+    assert_eq!(
+        run_scripted_modes("inconclusive", 0),
+        (false, vec![Mode::Completion, Mode::Duplex])
+    );
+}
+
+// @internal — avoid starting more native work when the previous worker did not finish.
+#[test]
+fn unfinished_cleanup_prevents_the_next_measurement() {
+    assert_eq!(
+        run_scripted_modes("inconclusive", 1),
+        (false, vec![Mode::Completion])
+    );
+}
+
+// @internal
+#[test]
+fn measurement_error_prevents_the_next_measurement() {
+    let mut modes = Vec::new();
+    assert!(!acceptance::run_modes(|mode| {
+        modes.push(mode);
+        Err("runtime failed".into())
+    }));
+    assert_eq!(modes, vec![Mode::Completion]);
+}

@@ -10,11 +10,11 @@ mod trace;
 
 #[cfg(all(target_os = "linux", feature = "audio"))]
 fn main() -> std::process::ExitCode {
-    use acceptance::{Mode, measure};
+    use acceptance::{Mode, measure, run_modes};
     use std::sync::Arc;
     use std::time::Duration;
 
-    for mode in [Mode::Completion, Mode::Duplex] {
+    let success = run_modes(|mode| {
         println!(
             "mode={mode:?} device=default playback=silence capture=discarded requested_playback_ms={}",
             if mode == Mode::Completion {
@@ -40,17 +40,19 @@ fn main() -> std::process::ExitCode {
                     report.unfinished_after_cleanup,
                     report.errors
                 );
-                if report.status != "measured" {
-                    return std::process::ExitCode::FAILURE;
-                }
+                Ok(report)
             }
             Err(error) => {
                 eprintln!("probe_error={error}");
-                return std::process::ExitCode::FAILURE;
+                Err(error)
             }
         }
+    });
+    if success {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::FAILURE
     }
-    std::process::ExitCode::SUCCESS
 }
 
 #[cfg(not(all(target_os = "linux", feature = "audio")))]

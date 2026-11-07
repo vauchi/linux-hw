@@ -24,6 +24,21 @@ pub struct Report {
     pub errors: Vec<String>,
 }
 
+/// Keep collecting after a clean inconclusive result, preserving the failed exit status.
+pub fn run_modes(mut measure_mode: impl FnMut(Mode) -> Result<Report, String>) -> bool {
+    let mut success = true;
+    for mode in [Mode::Completion, Mode::Duplex] {
+        let Ok(report) = measure_mode(mode) else {
+            return false;
+        };
+        if report.unfinished_after_cleanup != 0 {
+            return false;
+        }
+        success &= report.status == "measured" && report.errors.is_empty();
+    }
+    success
+}
+
 /// Measures backend call lifetimes; duplex readiness still requires native stage evidence.
 pub fn measure(
     backend: Arc<dyn AudioBackend>,
