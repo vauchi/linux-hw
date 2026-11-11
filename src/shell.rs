@@ -10,6 +10,7 @@ use crate::direct::DirectSession;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
 use crate::ports::{ExecutorError, LinkRequest, Notification};
+use crate::wakeup::WakeupTimer;
 use vauchi_contract::executor::DeliveryError;
 use vauchi_contract::{BleLinkDirection, Command, Event};
 
@@ -24,7 +25,7 @@ pub enum ExecuteError {
     Delivery(#[from] DeliveryError),
 }
 
-const SOURCES: usize = 7;
+const SOURCES: usize = 8;
 
 /// The entry point an app hands Core's hardware commands to (ADR-077
 /// item 4, ADR-078 item 3). Each command goes to the session that owns
@@ -39,6 +40,7 @@ pub struct HardwareShell {
     #[cfg(feature = "qr-decode")]
     camera: Option<CameraSession>,
     direct: Option<DirectSession>,
+    wakeup: WakeupTimer,
     next_source: usize,
 }
 
@@ -148,6 +150,10 @@ impl HardwareShell {
                 is_initiator,
                 endpoint,
             } => Ok(present(&mut self.direct)?.send(payload, is_initiator, endpoint)?),
+            Command::ScheduleWakeup { delay_millis, .. } => {
+                self.wakeup.schedule(delay_millis);
+                Ok(())
+            }
             _ => Err(ExecuteError::Unsupported),
         }
     }
@@ -176,6 +182,7 @@ impl HardwareShell {
             #[cfg(feature = "qr-decode")]
             camera,
             direct,
+            wakeup,
             ..
         } = self;
         #[cfg(feature = "qr-decode")]
@@ -195,6 +202,7 @@ impl HardwareShell {
             Some(event) = async { audio.as_mut()?.next_event().await } => Some(event),
             Some(event) = camera => Some(event),
             Some(event) = async { direct.as_mut()?.next_event().await } => Some(event),
+            Some(event) = wakeup.next_event() => Some(event),
             else => None,
         }
     }
@@ -237,6 +245,7 @@ impl HardwareShell {
             4 => self.camera.as_mut().and_then(CameraSession::pop),
             5 => self.central.as_mut().and_then(BleCentral::pop),
             6 => self.direct.as_mut().and_then(DirectSession::pop),
+            7 => self.wakeup.pop(),
             _ => None,
         }
     }

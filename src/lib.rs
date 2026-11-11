@@ -32,6 +32,7 @@ mod ports;
 pub mod qr;
 mod shell;
 mod tcp_direct;
+mod wakeup;
 mod worker;
 
 pub use advertising::BleAdvertiser;
