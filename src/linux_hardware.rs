@@ -10,10 +10,12 @@ use crate::central::BleCentral;
 use crate::direct::DirectSession;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
+use crate::notifications::NotificationSession;
 #[cfg(feature = "qr-decode")]
 use crate::ports::CameraBackend;
 use crate::ports::{
     Advertising, AudioBackend, Central, DirectBackend, Discovery, ExecutorError, NfcReader,
+    Notifier,
 };
 use crate::shell::{ExecuteError, HardwareShell};
 use std::num::NonZeroUsize;
@@ -64,6 +66,7 @@ pub struct Backends {
     #[cfg(feature = "qr-decode")]
     pub camera: Option<Arc<dyn CameraBackend>>,
     pub direct: Option<Arc<dyn DirectBackend>>,
+    pub notifier: Option<Arc<dyn Notifier>>,
 }
 
 impl Backends {
@@ -74,6 +77,15 @@ impl Backends {
         let backends = Self {
             direct: Some(Arc::new(crate::tcp_direct::TcpDirect)),
             ..Self::default()
+        };
+        // Every desktop session runs a notification service; a missing one
+        // reports a HardwareError on the first post.
+        #[cfg(target_os = "linux")]
+        let backends = Self {
+            notifier: Some(Arc::new(
+                crate::desktop_notifications::DesktopNotifications::default(),
+            )),
+            ..backends
         };
         #[cfg(target_os = "linux")]
         let backends = if claimed.has_ble {
@@ -254,6 +266,10 @@ fn attach(backends: Backends, runtime: &Handle) -> Result<HardwareShell, Executo
             runtime.clone(),
             DIRECT_LIMITS,
         )?);
+    }
+    if let Some(notifier) = backends.notifier {
+        shell =
+            shell.with_notifications(NotificationSession::with_backend(notifier, runtime.clone()));
     }
     Ok(shell)
 }

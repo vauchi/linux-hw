@@ -14,6 +14,8 @@ mod camera;
 mod capabilities;
 mod central;
 mod delivery;
+#[cfg(target_os = "linux")]
+mod desktop_notifications;
 mod direct;
 mod discovery;
 mod executor;
@@ -24,6 +26,7 @@ mod linux_hardware;
 mod nfc;
 #[cfg(feature = "camera")]
 mod nokhwa_camera;
+mod notifications;
 #[cfg(feature = "nfc")]
 mod pcsc;
 mod ports;
@@ -46,6 +49,8 @@ pub use camera::{CameraSession, rgb_to_luma};
 pub use capabilities::HostDevices;
 pub use central::BleCentral;
 pub use delivery::EventSender;
+#[cfg(target_os = "linux")]
+pub use desktop_notifications::DesktopNotifications;
 pub use direct::DirectSession;
 pub use discovery::BleScanner;
 pub use host::{UnsupportedDiscovery, host_discovery};
@@ -53,12 +58,13 @@ pub use linux_hardware::{Backends, LinuxHardware, StartError};
 pub use nfc::{NfcSession, ReaderSession};
 #[cfg(feature = "camera")]
 pub use nokhwa_camera::NokhwaCamera;
+pub use notifications::NotificationSession;
 #[cfg(feature = "nfc")]
 pub use pcsc::PcscReader;
 pub use ports::{
     Advertising, AudioBackend, CameraBackend, CameraFrames, Central, DirectBackend, Discovery,
     ExecutorError, HardwareFailure, LinkRequest, LinkRequests, LumaFrame, NfcCard, NfcReader,
-    Notification, Outbound,
+    Notification, Notifier, Outbound,
 };
 pub use shell::{ExecuteError, HardwareShell};
 pub use tcp_direct::TcpDirect;

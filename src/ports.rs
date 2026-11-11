@@ -191,3 +191,19 @@ pub trait DirectBackend: Send + Sync + 'static {
         is_initiator: bool,
     ) -> Result<Vec<u8>, String>;
 }
+
+/// The desktop notification port (ADR-077). `post` shows Core's prepared
+/// notification, replacing one with the same `notification_id`;
+/// `activations` runs until dropped and passes on the deep link of each
+/// notification the user clicks. The port interprets nothing.
+pub trait Notifier: Send + Sync + 'static {
+    fn post(
+        &self,
+        notification: vauchi_contract::NotificationSpec,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
+
+    fn activations(
+        &self,
+        opened: tokio::sync::mpsc::Sender<String>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
+}

@@ -9,6 +9,7 @@ use crate::central::BleCentral;
 use crate::direct::DirectSession;
 use crate::discovery::BleScanner;
 use crate::nfc::NfcSession;
+use crate::notifications::NotificationSession;
 use crate::ports::{ExecutorError, LinkRequest, Notification};
 use crate::wakeup::WakeupTimer;
 use vauchi_contract::executor::DeliveryError;
@@ -25,7 +26,7 @@ pub enum ExecuteError {
     Delivery(#[from] DeliveryError),
 }
 
-const SOURCES: usize = 8;
+const SOURCES: usize = 9;
 
 /// The entry point an app hands Core's hardware commands to (ADR-077
 /// item 4, ADR-078 item 3). Each command goes to the session that owns
@@ -41,6 +42,7 @@ pub struct HardwareShell {
     camera: Option<CameraSession>,
     direct: Option<DirectSession>,
     wakeup: WakeupTimer,
+    notifications: Option<NotificationSession>,
     next_source: usize,
 }
 
@@ -77,6 +79,11 @@ impl HardwareShell {
     #[cfg(feature = "qr-decode")]
     pub fn with_camera(mut self, camera: CameraSession) -> Self {
         self.camera = Some(camera);
+        self
+    }
+
+    pub fn with_notifications(mut self, notifications: NotificationSession) -> Self {
+        self.notifications = Some(notifications);
         self
     }
 
@@ -150,6 +157,10 @@ impl HardwareShell {
                 is_initiator,
                 endpoint,
             } => Ok(present(&mut self.direct)?.send(payload, is_initiator, endpoint)?),
+            Command::PostNotification { notification } => {
+                present(&mut self.notifications)?.post(notification);
+                Ok(())
+            }
             Command::ScheduleWakeup { delay_millis, .. } => {
                 self.wakeup.schedule(delay_millis);
                 Ok(())
@@ -183,6 +194,7 @@ impl HardwareShell {
             camera,
             direct,
             wakeup,
+            notifications,
             ..
         } = self;
         #[cfg(feature = "qr-decode")]
@@ -203,6 +215,7 @@ impl HardwareShell {
             Some(event) = camera => Some(event),
             Some(event) = async { direct.as_mut()?.next_event().await } => Some(event),
             Some(event) = wakeup.next_event() => Some(event),
+            Some(event) = async { notifications.as_mut()?.next_event().await } => Some(event),
             else => None,
         }
     }
@@ -229,6 +242,9 @@ impl HardwareShell {
         if let Some(camera) = &mut self.camera {
             camera.shutdown().await?;
         }
+        if let Some(notifications) = &mut self.notifications {
+            notifications.shutdown();
+        }
         if let Some(direct) = &mut self.direct {
             direct.shutdown().await?;
         }
@@ -246,6 +262,10 @@ impl HardwareShell {
             5 => self.central.as_mut().and_then(BleCentral::pop),
             6 => self.direct.as_mut().and_then(DirectSession::pop),
             7 => self.wakeup.pop(),
+            8 => self
+                .notifications
+                .as_mut()
+                .and_then(NotificationSession::pop),
             _ => None,
         }
     }
