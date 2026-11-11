@@ -97,7 +97,7 @@ fn audio_error(error: &str) -> Event {
     }
 }
 
-// @scenario: contact_exchange.feature :: Ultrasonic audio handshake process
+// @internal
 #[test]
 fn emit_plays_cores_samples_verbatim_and_reports_nothing_on_success() {
     let runtime = runtime();
@@ -117,7 +117,7 @@ fn emit_plays_cores_samples_verbatim_and_reports_nothing_on_success() {
     assert_eq!(session.pop(), None);
 }
 
-// @scenario: contact_exchange.feature :: Ultrasonic audio handshake process
+// @internal
 #[test]
 fn listen_records_for_the_given_time_and_reports_the_samples_at_the_devices_rate() {
     let runtime = runtime();
@@ -136,7 +136,7 @@ fn listen_records_for_the_given_time_and_reports_the_samples_at_the_devices_rate
     );
 }
 
-// @scenario: contact_exchange.feature :: Audio verification on devices without ultrasonic support
+// @internal
 #[test]
 fn a_backend_that_cannot_play_or_record_reports_a_hardware_error_on_audio() {
     let runtime = runtime();
