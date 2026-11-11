@@ -59,7 +59,8 @@ sha2 = "0.10"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # The NfcSession tests poll the inbox from the test thread, so the
 # executor's worker needs a runtime thread of its own.
-tokio = { version = "1", features = ["rt-multi-thread"] }
+# The wakeup timer tests pause tokio's clock instead of sleeping (CC-06).
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
 vauchi-linux-hw = { path = ".", features = ["fake-bluez"] }
 
 [lints.rust]
