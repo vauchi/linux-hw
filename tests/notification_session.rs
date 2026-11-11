@@ -80,6 +80,7 @@ async fn next(shell: &mut HardwareShell) -> Option<Event> {
         .flatten()
 }
 
+// @internal — #1029: linux-hw carries Core's notification unchanged; Core owns its content.
 #[tokio::test]
 async fn core_s_prepared_notification_is_shown_as_given() {
     let notifier = Arc::new(FakeNotifier::default());
@@ -100,6 +101,7 @@ async fn core_s_prepared_notification_is_shown_as_given() {
     assert_eq!(shell.pop(), None, "showing reports nothing");
 }
 
+// @internal — #1029: a click reaches Core as DeepLinkOpened, as GTK reports it.
 #[tokio::test]
 async fn a_click_on_a_notification_opens_its_deep_link() {
     let (click, clicks) = mpsc::channel(1);
@@ -121,6 +123,7 @@ async fn a_click_on_a_notification_opens_its_deep_link() {
     );
 }
 
+// @internal — #1029: a failed post is an event, never a silent drop.
 #[tokio::test]
 async fn a_notification_service_that_refuses_is_reported_not_hidden() {
     let notifier = Arc::new(FakeNotifier {
@@ -143,6 +146,7 @@ async fn a_notification_service_that_refuses_is_reported_not_hidden() {
     );
 }
 
+// @internal — #1029: a shell without the port refuses rather than pretending.
 #[test]
 fn without_a_notifier_the_command_is_unsupported() {
     let mut shell = HardwareShell::new();
