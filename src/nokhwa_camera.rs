@@ -1,20 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The V4L2 camera behind the camera port through nokhwa, moved from
-//! linux-gtk's `platform/camera.rs` capture loop: the first device at its
-//! highest frame rate, each frame decoded to RGB and packed to luma.
+//! The V4L2 camera behind the camera port: the first device at its highest
+//! frame rate, each frame decoded to RGB and packed to luma. Use Nokhwa's
+//! Linux backend directly to avoid its wrapper's unmaintained paste macro.
 use crate::camera::rgb_to_luma;
 use crate::ports::{CameraBackend, CameraFrames, LumaFrame};
-use nokhwa::Camera;
-use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
+use nokhwa_bindings_linux::V4LCaptureDevice;
+use nokhwa_core::pixel_format::RgbFormat;
+use nokhwa_core::traits::CaptureBackendTrait;
+use nokhwa_core::types::{CameraIndex, RequestedFormat, RequestedFormatType};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct NokhwaCamera;
 
 struct NokhwaFrames {
-    camera: Camera,
+    camera: V4LCaptureDevice<'static>,
     cancelled: Arc<AtomicBool>,
 }
 
@@ -49,7 +50,7 @@ impl CameraBackend for NokhwaCamera {
     fn open(&self, cancelled: Arc<AtomicBool>) -> Result<Box<dyn CameraFrames>, String> {
         let requested =
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
-        let mut camera = Camera::new(CameraIndex::Index(0), requested)
+        let mut camera = V4LCaptureDevice::new(&CameraIndex::Index(0), requested)
             .map_err(|e| format!("Camera open failed: {e}"))?;
         camera
             .open_stream()

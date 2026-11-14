@@ -3,7 +3,7 @@
 
 [package]
 name = "vauchi-linux-hw"
-version = "0.101.0"
+version = "0.101.1"
 edition = "2024"
 rust-version = "1.93"
 license = "AGPL-3.0-or-later"
@@ -29,7 +29,8 @@ serde = { version = "1", features = ["derive"], optional = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 pcsc = { version = "2", optional = true }
 alsa = { version = "0.9", optional = true }
-nokhwa = { version = "0.10", features = ["input-v4l"], optional = true }
+nokhwa-core = { version = "0.1.9", features = ["mjpeg"], optional = true }
+nokhwa-bindings-linux = { version = "0.1.4", optional = true }
 zbus = { version = "=6.0.0", default-features = false, features = ["tokio"] }
 uuid = { version = "1", default-features = false }
 tokio = { version = "1", features = ["net"] }
@@ -45,8 +46,8 @@ nfc = ["dep:pcsc"]
 audio = ["dep:alsa"]
 # QR decoding from luma frames (moved from Core, owner Q1/Q3 2026-11-02).
 qr-decode = ["dep:rqrr", "dep:rxing", "dep:image", "dep:serde"]
-# The V4L2 camera through nokhwa behind the camera port; scans need the decoder.
-camera = ["qr-decode", "dep:nokhwa"]
+# The V4L2 camera behind the camera port; scans need the decoder.
+camera = ["qr-decode", "dep:nokhwa-core", "dep:nokhwa-bindings-linux"]
 # mDNS discovery of the phone for direct send; without it, Core's fallback
 # host and port are used.
 mdns = ["dep:mdns-sd"]
