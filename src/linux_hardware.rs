@@ -141,6 +141,21 @@ pub struct LinuxHardware {
 }
 
 impl LinuxHardware {
+    /// A timer-only shell when native startup fails. It needs no worker
+    /// threads or I/O driver, so it remains usable after those resources fail.
+    pub fn without_devices() -> Self {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("a timer-only runtime opens no I/O driver and starts no worker threads");
+        Self {
+            shell: HardwareShell::new(),
+            report: HostDevices::default().report(),
+            pending_command_error: None,
+            runtime,
+        }
+    }
+
     /// Probe the host and attach the native backend of every device found.
     pub fn start() -> Result<Self, StartError> {
         let devices = HostDevices::probe();

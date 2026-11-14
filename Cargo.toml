@@ -3,7 +3,7 @@
 
 [package]
 name = "vauchi-linux-hw"
-version = "0.101.1"
+version = "0.101.2"
 edition = "2024"
 rust-version = "1.93"
 license = "AGPL-3.0-or-later"
@@ -61,7 +61,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 # The NfcSession tests poll the inbox from the test thread, so the
 # executor's worker needs a runtime thread of its own.
 # The wakeup timer tests pause tokio's clock instead of sleeping (CC-06).
-tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
+# Exercise Linux's I/O-driver startup failure on other editing hosts too.
+tokio = { version = "1", features = ["rt-multi-thread", "test-util", "net"] }
 vauchi-linux-hw = { path = ".", features = ["fake-bluez"] }
 
 [lints.rust]

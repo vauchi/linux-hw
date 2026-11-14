@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "vauchi-linux-hw"
-version = "0.101.1"
+version = "0.101.2"
 dependencies = [
  "alsa",
  "futures-util",
