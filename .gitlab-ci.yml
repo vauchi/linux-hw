@@ -35,6 +35,7 @@ include:
       - '/ci-templates/release.yml'
       - '/ci-templates/security.yml'
       - '/ci-templates/timeouts.yml'
+      - '/ci-templates/github-mirror.yml'
 
 variables:
   VAUCHI_SCRIPTS_REF: "ci-templates-v2026.11.17"
@@ -122,3 +123,6 @@ check:allow-git:
 
 security:vet:
   extends: [.rust-runner-readonly, .security-vet-job]
+
+github-mirror:
+  extends: .github-mirror
