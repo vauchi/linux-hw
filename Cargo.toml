@@ -3,7 +3,7 @@
 
 [package]
 name = "vauchi-linux-hw"
-version = "0.101.2"
+version = "0.102.0"
 edition = "2024"
 rust-version = "1.93"
 license = "AGPL-3.0-or-later"
@@ -14,7 +14,7 @@ publish = false
 
 [dependencies]
 # The shell contract (ADR-078): the only Vauchi crate a hardware shell depends on.
-vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.98.0", version = "^0.98" }
+vauchi-contract = { git = "https://gitlab.com/vauchi/contract.git", tag = "v0.99.0", version = "^0.99" }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
