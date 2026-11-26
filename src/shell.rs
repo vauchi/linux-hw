@@ -101,6 +101,7 @@ impl HardwareShell {
             Command::BleStartAdvertising {
                 service_uuid,
                 payload,
+                ..
             } => Ok(present(&mut self.advertiser)?.start(service_uuid, payload)?),
             Command::BleStopAdvertising => present(&mut self.advertiser).map(BleAdvertiser::stop),
             Command::BleWriteCharacteristic {
@@ -113,7 +114,7 @@ impl HardwareShell {
                 uuid,
                 data,
             })?),
-            Command::BleConnect { device_id } => {
+            Command::BleConnect { device_id, .. } => {
                 Ok(present(&mut self.central)?.connect(device_id)?)
             }
             Command::BleWriteCharacteristic {
