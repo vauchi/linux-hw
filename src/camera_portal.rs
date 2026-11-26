@@ -24,6 +24,8 @@ static REQUESTS: AtomicU64 = AtomicU64::new(1);
 pub enum PortalError {
     #[error("camera portal unavailable")]
     Unavailable,
+    #[error("no camera is available")]
+    NoCamera,
     #[error("camera access denied")]
     Denied,
     #[error("camera request cancelled")]
@@ -107,11 +109,26 @@ impl CameraPortal {
                 .await
                 .map_err(|_| PortalError::Failed)?;
         let options = HashMap::from([("handle_token", Variant::from(token.as_str()))]);
-        let reply = self
-            .connection
-            .call_method(Some(SERVICE), PATH, Some(CAMERA), "AccessCamera", &options)
-            .await
-            .map_err(|_| PortalError::Failed)?;
+        let access = self.connection.call_method(
+            Some(SERVICE),
+            PATH,
+            Some(CAMERA),
+            "AccessCamera",
+            &options,
+        );
+        tokio::pin!(access);
+        let mut check_cancel = tokio::time::interval(Duration::from_millis(25));
+        let reply = loop {
+            if cancelled.load(Ordering::SeqCst) {
+                self.close(&path).await;
+                return Err(PortalError::Cancelled);
+            }
+            tokio::select! {
+                biased;
+                _ = check_cancel.tick() => {},
+                reply = &mut access => break reply.map_err(|_| PortalError::Failed)?,
+            }
+        };
         let handle: OwnedObjectPath = reply
             .body()
             .deserialize()
@@ -119,7 +136,6 @@ impl CameraPortal {
         if handle.as_str() != path {
             return Err(PortalError::InvalidResponse);
         }
-        let mut check_cancel = tokio::time::interval(Duration::from_millis(25));
         loop {
             if cancelled.load(Ordering::SeqCst) {
                 self.close(&path).await;
@@ -146,10 +162,12 @@ impl CameraPortal {
     }
 
     async fn close(&self, path: &str) {
-        let _ = self
-            .connection
-            .call_method(Some(SERVICE), path, Some(REQUEST), "Close", &())
-            .await;
+        let _ = tokio::time::timeout(
+            Duration::from_millis(250),
+            self.connection
+                .call_method(Some(SERVICE), path, Some(REQUEST), "Close", &()),
+        )
+        .await;
     }
 }
 

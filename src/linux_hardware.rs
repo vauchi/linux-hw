@@ -128,7 +128,7 @@ impl Backends {
         #[cfg(all(feature = "camera-preview", target_os = "linux"))]
         let backends = if claimed.has_camera {
             Self {
-                camera: Some(Arc::new(crate::PipeWireCamera)),
+                camera: Some(Arc::new(crate::PipeWireCamera::default())),
                 ..backends
             }
         } else {
@@ -142,6 +142,8 @@ impl Backends {
 /// What an app holds: linux-hw's runtime, the sessions on it and the
 /// capability report, behind blocking calls so the app needs no runtime.
 pub struct LinuxHardware {
+    #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+    preview_directory: Option<crate::preview_source::PreviewDirectory>,
     shell: HardwareShell,
     report: Event,
     pending_command_error: Option<Event>,
@@ -158,6 +160,8 @@ impl LinuxHardware {
             .build()
             .expect("a timer-only runtime opens no I/O driver and starts no worker threads");
         Self {
+            #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+            preview_directory: None,
             shell: HardwareShell::new(),
             report: HostDevices::default().report(),
             pending_command_error: None,
@@ -177,8 +181,15 @@ impl LinuxHardware {
             .thread_name("vauchi-linux-hw")
             .enable_all()
             .build()?;
+        #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+        let preview_directory = backends
+            .camera
+            .as_ref()
+            .and_then(|camera| camera.preview_directory());
         let shell = attach(backends, runtime.handle())?;
         Ok(Self {
+            #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+            preview_directory,
             shell,
             report: devices.report(),
             pending_command_error: None,
@@ -189,6 +200,11 @@ impl LinuxHardware {
     /// The `HardwareCapabilitiesReported` the app sends Core at start.
     pub fn report(&self) -> Event {
         self.report.clone()
+    }
+
+    #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+    pub fn preview_directory(&self) -> Option<crate::preview_source::PreviewDirectory> {
+        self.preview_directory.clone()
     }
 
     /// BLE read/write delivery refusals also reach Core through `pop` or

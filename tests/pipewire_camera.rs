@@ -36,7 +36,7 @@ fn preview_names_are_scoped_to_the_app_and_encode_identity_without_nul_bytes() {
 #[test]
 #[ignore = "requires the desktop PipeWire service and a camera"]
 fn native_capture_provides_a_frame_then_honors_stop() {
-    let camera = PipeWireCamera;
+    let camera = PipeWireCamera::default();
     let cancelled = Arc::new(AtomicBool::new(false));
     let mut capture = camera
         .open_preview("native-camera-test", cancelled.clone())
@@ -56,15 +56,23 @@ fn native_capture_provides_a_frame_then_honors_stop() {
 fn the_native_host_publishes_only_its_live_camera_preview() {
     let devices = HostDevices::probe();
     let camera = vauchi_linux_hw::Backends::host(&devices).camera.unwrap();
+    let directory = camera.preview_directory().unwrap();
+    assert!(directory.resolve("host-test").unwrap().is_none());
     let cancelled = Arc::new(AtomicBool::new(false));
     let mut capture = camera.open_preview("host-test", cancelled.clone()).unwrap();
     let frame = capture.next_luma().unwrap().unwrap();
     assert_eq!(frame.luma.len(), (frame.width * frame.height) as usize);
     let name = PipeWireCamera::preview_node_name("host-test").unwrap();
     assert_eq!(preview_nodes(&name), 1);
+    let source = directory.resolve("host-test").unwrap().unwrap();
+    assert_ne!(source.node_id, u32::MAX);
+    assert_ne!(source.serial, 0);
+    assert!(source.remote_fd.is_none());
+    assert!(directory.resolve("foreign").unwrap().is_none());
     cancelled.store(true, Ordering::SeqCst);
     assert_eq!(capture.next_luma().unwrap(), None);
     drop(capture);
+    assert!(directory.resolve("host-test").unwrap().is_none());
     assert_eq!(preview_nodes(&name), 0);
 }
 

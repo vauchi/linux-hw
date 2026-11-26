@@ -24,6 +24,9 @@ pub enum Response {
     Deny,
     Malformed,
     Wait,
+    HoldReply,
+    Unavailable,
+    NoCamera,
 }
 
 pub struct FakePortal {
@@ -84,10 +87,31 @@ impl FakePortal {
                             (interface.as_str(), property.as_str()),
                             (CAMERA, "IsCameraPresent")
                         );
-                        service.reply(&header, &Variant::from(true)).await.unwrap();
+                        if matches!(response, Response::Unavailable) {
+                            service
+                                .reply_error(
+                                    &header,
+                                    "org.freedesktop.DBus.Error.UnknownInterface",
+                                    &"no camera portal",
+                                )
+                                .await
+                                .unwrap();
+                        } else {
+                            service
+                                .reply(
+                                    &header,
+                                    &Variant::from(!matches!(response, Response::NoCamera)),
+                                )
+                                .await
+                                .unwrap();
+                        }
                     }
                     "AccessCamera" => {
                         state.1.fetch_add(1, Ordering::SeqCst);
+                        if matches!(response, Response::HoldReply) {
+                            state.3.notify_one();
+                            continue;
+                        }
                         let options: HashMap<String, OwnedVariant> =
                             message.body().deserialize().unwrap();
                         let token =

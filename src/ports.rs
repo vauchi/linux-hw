@@ -173,6 +173,11 @@ pub trait CameraFrames {
 
 /// The camera port: opens the device's stream, or names why it cannot.
 pub trait CameraBackend: Send + Sync + 'static {
+    #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+    fn preview_directory(&self) -> Option<crate::preview_source::PreviewDirectory> {
+        None
+    }
+
     fn open(
         &self,
         cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,

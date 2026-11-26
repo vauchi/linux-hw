@@ -15,6 +15,7 @@ use std::{
     },
 };
 use vauchi_linux_hw::camera_portal::{CameraPortal, PortalError};
+use vauchi_linux_hw::{CameraBackend, PipeWireCamera};
 
 // @internal
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -77,4 +78,68 @@ async fn cancellation_closes_the_pending_request_without_opening_a_remote() {
     assert_eq!(request.await.unwrap().err(), Some(PortalError::Cancelled));
     assert_eq!(fixture.closes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.peers.lock().unwrap().len(), 0);
+}
+
+// @internal
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancellation_also_closes_a_request_whose_method_reply_is_stalled() {
+    let fixture = FakePortal::start(Response::HoldReply).await;
+    let portal = CameraPortal::new(fixture.client.clone());
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let stop = cancelled.clone();
+    let request = tokio::spawn(async move { portal.request(stop).await });
+    fixture.opened.notified().await;
+    cancelled.store(true, Ordering::SeqCst);
+    let result = tokio::time::timeout(std::time::Duration::from_secs(1), request).await;
+    assert_eq!(result.unwrap().unwrap().err(), Some(PortalError::Cancelled));
+    assert_eq!(fixture.closes.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.peers.lock().unwrap().len(), 0);
+}
+
+// @internal
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_required_portal_never_falls_back_to_native_capture_after_denial() {
+    let fixture = FakePortal::start(Response::Deny).await;
+    let camera = PipeWireCamera::with_portal(CameraPortal::new(fixture.client.clone()), true);
+    let error = tokio::task::spawn_blocking(move || {
+        camera
+            .open_preview("denied", Arc::new(AtomicBool::new(false)))
+            .err()
+    })
+    .await
+    .unwrap();
+    assert_eq!(error.as_deref(), Some("camera access denied"));
+    assert_eq!(fixture.peers.lock().unwrap().len(), 0);
+}
+
+// @internal
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_sandbox_without_a_camera_portal_does_not_try_the_default_remote() {
+    let fixture = FakePortal::start(Response::Unavailable).await;
+    let camera = PipeWireCamera::with_portal(CameraPortal::new(fixture.client.clone()), true);
+    let error = tokio::task::spawn_blocking(move || {
+        camera
+            .open_preview("missing", Arc::new(AtomicBool::new(false)))
+            .err()
+    })
+    .await
+    .unwrap();
+    assert_eq!(error.as_deref(), Some("camera portal unavailable"));
+    assert_eq!(fixture.accesses.load(Ordering::SeqCst), 0);
+}
+
+// @internal
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn probing_an_absent_camera_does_not_request_camera_access() {
+    let fixture = FakePortal::start(Response::NoCamera).await;
+    let camera = PipeWireCamera::with_portal(CameraPortal::new(fixture.client.clone()), true);
+    let error = tokio::task::spawn_blocking(move || {
+        camera
+            .open_preview("absent", Arc::new(AtomicBool::new(false)))
+            .err()
+    })
+    .await
+    .unwrap();
+    assert_eq!(error.as_deref(), Some("no camera is available"));
+    assert_eq!(fixture.accesses.load(Ordering::SeqCst), 0);
 }

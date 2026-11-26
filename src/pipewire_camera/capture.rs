@@ -34,11 +34,13 @@ struct Latest {
 }
 
 pub(super) struct Capture {
+    publication: super::publication::Publication,
     _input_events: StreamListener<VideoInfoRaw>,
     _output_events: StreamListener<()>,
     _input: StreamRc,
     output: StreamRc,
     mainloop: pw::main_loop::MainLoopRc,
+    core: pw::core::CoreRc,
     latest: Rc<RefCell<Latest>>,
     delivered: u64,
     cancelled: Arc<AtomicBool>,
@@ -51,6 +53,7 @@ impl Capture {
         target: String,
         name: String,
         cancelled: Arc<AtomicBool>,
+        publication: super::publication::Publication,
     ) -> Result<Self, String> {
         let latest = Rc::new(RefCell::new(Latest::default()));
         let input = StreamRc::new(
@@ -73,7 +76,7 @@ impl Capture {
             )
             .map_err(|_| "camera capture could not start")?;
         let output = StreamRc::new(
-            core,
+            core.clone(),
             "Vauchi camera preview",
             properties! {
                 "media.type" => "Video", "media.category" => "Capture", "media.role" => "Camera",
@@ -92,11 +95,13 @@ impl Capture {
             )
             .map_err(|_| "camera preview could not start")?;
         Ok(Self {
+            publication,
             _input_events: input_events,
             _output_events: output_events,
             _input: input,
             output,
             mainloop,
+            core,
             latest,
             delivered: 0,
             cancelled,
@@ -111,11 +116,12 @@ impl CameraFrames for Capture {
             self.mainloop
                 .loop_()
                 .iterate(pw::loop_::Timeout::Finite(Duration::from_millis(25)));
+            self.publication.update(&self.core, &self.output)?;
             let latest = self.latest.borrow();
             if let Some(error) = &latest.error {
                 return Err(error.clone());
             }
-            if latest.generation != self.delivered {
+            if latest.generation != self.delivered && self.publication.ready() {
                 self.delivered = latest.generation;
                 if matches!(self.output.state(), StreamState::Streaming) {
                     self.output

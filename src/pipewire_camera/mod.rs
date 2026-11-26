@@ -3,6 +3,8 @@
 
 mod capture;
 mod formats;
+mod portal_runtime;
+mod publication;
 
 use crate::ports::{CameraBackend, CameraFrames};
 use pipewire as pw;
@@ -12,11 +14,14 @@ use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
 
 #[derive(Default)]
-pub struct PipeWireCamera;
+pub struct PipeWireCamera {
+    portal: Option<crate::camera_portal::CameraPortal>,
+    portal_required: bool,
+    directory: crate::preview_source::PreviewDirectory,
+}
 
 impl PipeWireCamera {
-    /// Both display libraries share the app process, but not camera ownership.
-    /// The process scope prevents one app from displaying another's capture.
+    /// Diagnostic name; the app-owned directory authorizes preview consumers.
     pub fn preview_node_name(preview_id: &str) -> Result<String, &'static str> {
         if preview_id.is_empty() || preview_id.len() > 128 {
             return Err("invalid camera preview identity");
@@ -29,11 +34,31 @@ impl PipeWireCamera {
     }
 
     pub fn available() -> bool {
-        camera_connection().is_ok()
+        match portal_runtime::portal(None, portal_runtime::sandboxed()) {
+            Ok(Some(_)) => true,
+            Ok(None) => camera_connection(None).is_ok(),
+            Err(_) => false,
+        }
+    }
+
+    pub fn with_portal(portal: crate::camera_portal::CameraPortal, required: bool) -> Self {
+        Self {
+            portal: Some(portal),
+            portal_required: required,
+            ..Self::default()
+        }
+    }
+
+    pub fn preview_directory(&self) -> crate::preview_source::PreviewDirectory {
+        self.directory.clone()
     }
 }
 
 impl CameraBackend for PipeWireCamera {
+    fn preview_directory(&self) -> Option<crate::preview_source::PreviewDirectory> {
+        Some(self.directory.clone())
+    }
+
     fn open(&self, cancelled: Arc<AtomicBool>) -> Result<Box<dyn CameraFrames>, String> {
         self.open_preview("capture", cancelled)
     }
@@ -44,21 +69,44 @@ impl CameraBackend for PipeWireCamera {
         cancelled: Arc<AtomicBool>,
     ) -> Result<Box<dyn CameraFrames>, String> {
         let name = Self::preview_node_name(preview_id)?;
-        let (mainloop, core, target) = camera_connection()?;
+        if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("camera request cancelled".into());
+        }
+        let access = portal_runtime::authorize(
+            self.portal.clone(),
+            self.portal_required || portal_runtime::sandboxed(),
+            cancelled.clone(),
+        )
+        .map_err(|error| error.to_string())?;
+        let (mainloop, core, target) = camera_connection(access.fd)?;
+        let publication = publication::Publication::new(
+            self.directory.clone(),
+            preview_id.to_owned(),
+            access.remote,
+        );
         Ok(Box::new(capture::Capture::new(
-            mainloop, core, target, name, cancelled,
+            mainloop,
+            core,
+            target,
+            name,
+            cancelled,
+            publication,
         )?))
     }
 }
 
-fn camera_connection() -> Result<(pw::main_loop::MainLoopRc, pw::core::CoreRc, String), String> {
+fn camera_connection(
+    fd: Option<std::os::fd::OwnedFd>,
+) -> Result<(pw::main_loop::MainLoopRc, pw::core::CoreRc, String), String> {
     pw::init();
     let mainloop = pw::main_loop::MainLoopRc::new(None).map_err(|_| "camera loop unavailable")?;
     let context =
         pw::context::ContextRc::new(&mainloop, None).map_err(|_| "camera context unavailable")?;
-    let core = context
-        .connect_rc(None)
-        .map_err(|_| "camera service unavailable or permission denied")?;
+    let core = match fd {
+        Some(fd) => context.connect_fd_rc(fd, None),
+        None => context.connect_rc(None),
+    }
+    .map_err(|_| "camera service unavailable or permission denied")?;
     let target = find_camera(&mainloop, &core)?;
     Ok((mainloop, core, target))
 }

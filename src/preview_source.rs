@@ -4,6 +4,9 @@
 use std::os::fd::OwnedFd;
 use std::sync::{Arc, Mutex};
 
+mod resolver;
+pub use resolver::PreviewResolver;
+
 pub type RemoteOpener = Arc<dyn Fn() -> Result<OwnedFd, String> + Send + Sync>;
 
 /// Native resources passed by app wiring, never by Core's frame protocol.
