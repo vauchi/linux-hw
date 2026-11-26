@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[default.extend-identifiers]
+# PipeWire's buffer API spells the accessor this way.
+datas_mut = "datas_mut"

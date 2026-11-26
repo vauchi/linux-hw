@@ -31,6 +31,8 @@ mod nokhwa_camera;
 mod notifications;
 #[cfg(feature = "nfc")]
 mod pcsc;
+#[cfg(all(feature = "camera-preview", target_os = "linux"))]
+mod pipewire_camera;
 mod ports;
 /// The QR decoder (ADR-077: decoding is hardware-shell code), behind `qr-decode`.
 #[cfg(feature = "qr-decode")]
@@ -63,6 +65,8 @@ pub use nokhwa_camera::NokhwaCamera;
 pub use notifications::NotificationSession;
 #[cfg(feature = "nfc")]
 pub use pcsc::PcscReader;
+#[cfg(all(feature = "camera-preview", target_os = "linux"))]
+pub use pipewire_camera::PipeWireCamera;
 pub use ports::{
     Advertising, AudioBackend, CameraBackend, CameraFrames, Central, DirectBackend, Discovery,
     ExecutorError, HardwareFailure, LinkRequest, LinkRequests, LumaFrame, NfcCard, NfcReader,

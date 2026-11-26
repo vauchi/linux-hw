@@ -31,11 +31,13 @@ pcsc = { version = "2", optional = true }
 alsa = { version = "0.9", optional = true }
 nokhwa-core = { version = "0.1.9", features = ["mjpeg"], optional = true }
 nokhwa-bindings-linux = { version = "0.1.4", optional = true }
+pipewire = { version = "=0.10.1", features = ["v0_3_77"], optional = true }
 zbus = { version = "=6.0.0", default-features = false, features = ["tokio"] }
 uuid = { version = "1", default-features = false }
 tokio = { version = "1", features = ["net"] }
 
 [features]
+camera-preview = ["camera", "dep:pipewire"]
 # Test support: the scripted BlueZ that hosts of `BlueZDiscovery` test
 # against (src/fake_bluez.rs).
 fake-bluez = []
