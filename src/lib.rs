@@ -11,6 +11,8 @@ mod audio;
 mod bluez;
 #[cfg(feature = "qr-decode")]
 mod camera;
+#[cfg(feature = "qr-decode")]
+pub mod camera_frame;
 mod capabilities;
 mod central;
 mod delivery;
