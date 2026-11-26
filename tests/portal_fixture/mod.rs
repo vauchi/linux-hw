@@ -21,6 +21,7 @@ const CAMERA: &str = "org.freedesktop.portal.Camera";
 #[derive(Clone, Copy)]
 pub enum Response {
     Grant,
+    NativeGrant,
     Deny,
     Malformed,
     Wait,
@@ -135,11 +136,12 @@ impl FakePortal {
                                 .await
                                 .unwrap();
                         } else if !matches!(response, Response::Wait) {
-                            let code = if matches!(response, Response::Grant) {
-                                0u32
-                            } else {
-                                1u32
-                            };
+                            let code =
+                                if matches!(response, Response::Grant | Response::NativeGrant) {
+                                    0u32
+                                } else {
+                                    1u32
+                                };
                             service
                                 .emit_signal(
                                     Some(sender.as_str()),
@@ -155,8 +157,16 @@ impl FakePortal {
                         state.3.notify_one();
                     }
                     "OpenPipeWireRemote" => {
-                        let (socket, peer) = UnixStream::pair().unwrap();
-                        state.0.lock().unwrap().push(peer);
+                        let socket = if matches!(response, Response::NativeGrant) {
+                            UnixStream::connect(
+                                std::env::var("VAUCHI_TEST_PIPEWIRE_SOCKET").unwrap(),
+                            )
+                            .unwrap()
+                        } else {
+                            let (socket, peer) = UnixStream::pair().unwrap();
+                            state.0.lock().unwrap().push(peer);
+                            socket
+                        };
                         let fd = zbus::OwnedFd::from(std::os::fd::OwnedFd::from(socket));
                         service.reply(&header, &fd).await.unwrap();
                     }

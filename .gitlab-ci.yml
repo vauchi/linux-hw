@@ -43,8 +43,8 @@ variables:
   # advisory with no fix available to us, not one we chose to skip.
   #   RUSTSEC-2026-0543  chrono and chrono-tz unmaintained, only via
   #   RUSTSEC-2026-0555  rxing, the QR decoder behind the qr-decode
-  #                      feature; cargo deny checks default features
-  #                      only, so deny.toml needs no entry (private#1274).
+  #                      feature, now part of camera-preview's default.
+  #                      deny.toml carries the same policy (private#1274).
   AUDIT_IGNORES: "--ignore RUSTSEC-2026-0543 --ignore RUSTSEC-2026-0555"
 
 stages:

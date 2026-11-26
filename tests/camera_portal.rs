@@ -143,3 +143,39 @@ async fn probing_an_absent_camera_does_not_request_camera_access() {
     assert_eq!(error.as_deref(), Some("no camera is available"));
     assert_eq!(fixture.accesses.load(Ordering::SeqCst), 0);
 }
+
+// @internal — real PipeWire capture over a DBus-transferred FD, with the
+// default remote deliberately unavailable in the invoking environment.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires VAUCHI_TEST_PIPEWIRE_SOCKET and a real desktop camera"]
+async fn portal_capture_uses_the_transferred_fd_and_publishes_fresh_preview_remotes() {
+    let fixture = FakePortal::start(Response::NativeGrant).await;
+    let camera = PipeWireCamera::with_portal(CameraPortal::new(fixture.client.clone()), true);
+    let directory = camera.preview_directory();
+    let worker = tokio::task::spawn_blocking(move || {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let mut capture = camera
+            .open_preview("portal-proof", cancelled.clone())
+            .unwrap();
+        let frame = capture.next_luma().unwrap().unwrap();
+        assert_eq!(
+            (frame.width, frame.height, frame.luma.len()),
+            (640, 480, 640 * 480)
+        );
+        let first = directory.resolve("portal-proof").unwrap().unwrap();
+        let second = directory.resolve("portal-proof").unwrap().unwrap();
+        assert_eq!(
+            (first.node_id, first.serial),
+            (second.node_id, second.serial)
+        );
+        assert_ne!(first.node_id, u32::MAX);
+        assert!(first.remote_fd.is_some());
+        assert!(second.remote_fd.is_some());
+        cancelled.store(true, Ordering::SeqCst);
+        assert_eq!(capture.next_luma().unwrap(), None);
+        drop(capture);
+        assert!(directory.resolve("portal-proof").unwrap().is_none());
+    });
+    worker.await.unwrap();
+    assert_eq!(fixture.accesses.load(Ordering::SeqCst), 1);
+}
