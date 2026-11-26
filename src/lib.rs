@@ -25,6 +25,8 @@ mod discovery;
 mod executor;
 #[cfg(all(target_os = "linux", feature = "fake-bluez"))]
 pub mod fake_bluez;
+#[cfg(all(target_os = "linux", feature = "qr-decode"))]
+pub mod frame_buffer;
 mod host;
 mod linux_hardware;
 mod nfc;
