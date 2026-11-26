@@ -18,10 +18,16 @@ pub struct HostDevices {
 impl HostDevices {
     /// The running host's devices, the NFC reader through PC/SC.
     pub fn probe() -> Self {
-        Self {
+        let devices = Self {
             nfc_reader: pcsc_reader_present(),
             ..Self::under(Path::new("/"))
-        }
+        };
+        #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+        let devices = Self {
+            video_device: crate::PipeWireCamera::available(),
+            ..devices
+        };
+        devices
     }
 
     /// The devices a host tree rooted at `root` names in sysfs, procfs and
@@ -43,7 +49,8 @@ impl HostDevices {
         DeviceCapabilities {
             has_ble: cfg!(target_os = "linux") && self.bluetooth_adapter,
             has_nfc: cfg!(feature = "nfc") && self.nfc_reader,
-            has_camera: cfg!(feature = "camera") && self.video_device,
+            has_camera: cfg!(any(feature = "camera", feature = "camera-preview"))
+                && self.video_device,
             audio: if cfg!(feature = "audio") && self.sound_card {
                 AudioCapability::Full
             } else {

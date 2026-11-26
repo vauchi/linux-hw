@@ -4,3 +4,5 @@
 [default.extend-identifiers]
 # PipeWire's buffer API spells the accessor this way.
 datas_mut = "datas_mut"
+# The compression dependency's upstream crate name.
+flate2 = "flate2"

@@ -125,6 +125,15 @@ impl Backends {
         } else {
             backends
         };
+        #[cfg(all(feature = "camera-preview", target_os = "linux"))]
+        let backends = if claimed.has_camera {
+            Self {
+                camera: Some(Arc::new(crate::PipeWireCamera)),
+                ..backends
+            }
+        } else {
+            backends
+        };
         let _ = claimed;
         backends
     }

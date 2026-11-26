@@ -7,6 +7,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use vauchi_linux_hw::HostDevices;
 use vauchi_linux_hw::{CameraBackend, PipeWireCamera};
 
 // @internal
@@ -47,4 +48,32 @@ fn native_capture_provides_a_frame_then_honors_stop() {
     );
     cancelled.store(true, Ordering::SeqCst);
     assert_eq!(capture.next_luma().unwrap(), None);
+}
+
+// @internal
+#[test]
+#[ignore = "requires the desktop PipeWire service and a camera"]
+fn the_native_host_publishes_only_its_live_camera_preview() {
+    let devices = HostDevices::probe();
+    let camera = vauchi_linux_hw::Backends::host(&devices).camera.unwrap();
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let mut capture = camera.open_preview("host-test", cancelled.clone()).unwrap();
+    let frame = capture.next_luma().unwrap().unwrap();
+    assert_eq!(frame.luma.len(), (frame.width * frame.height) as usize);
+    let name = PipeWireCamera::preview_node_name("host-test").unwrap();
+    assert_eq!(preview_nodes(&name), 1);
+    cancelled.store(true, Ordering::SeqCst);
+    assert_eq!(capture.next_luma().unwrap(), None);
+    drop(capture);
+    assert_eq!(preview_nodes(&name), 0);
+}
+
+fn preview_nodes(name: &str) -> usize {
+    let graph = std::process::Command::new("pw-dump").output().unwrap();
+    assert_eq!(graph.status.code(), Some(0));
+    let graph: Vec<serde_json::Value> = serde_json::from_slice(&graph.stdout).unwrap();
+    graph
+        .iter()
+        .filter(|node| node["info"]["props"]["node.name"].as_str() == Some(name))
+        .count()
 }
