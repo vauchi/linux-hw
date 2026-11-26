@@ -85,3 +85,32 @@ fn dropping_the_publisher_retires_a_still_open_preview_descriptor() {
     assert_eq!(reader.poll().unwrap(), None);
     assert!(reader.closed());
 }
+
+// @internal
+#[test]
+fn helper_attachment_accepts_only_an_initialized_writable_resource() {
+    let writer = FrameWriter::initialize(tempfile::tempfile().unwrap()).unwrap();
+    let helper = FrameWriter::attach(File::from(writer.writer_fd().unwrap())).unwrap();
+    let mut reader = writer.reader().unwrap();
+    assert!(helper.write(&frame(45)).unwrap());
+    assert_eq!(reader.poll().unwrap(), Some(frame(45)));
+    assert!(FrameWriter::attach(File::from(writer.reader_fd().unwrap())).is_err());
+    assert!(FrameWriter::attach(tempfile::tempfile().unwrap()).is_err());
+}
+
+proptest::proptest! {
+    // @internal — latest-frame and retirement invariants over arbitrary updates.
+    #[test]
+    fn arbitrary_updates_keep_the_latest_pixels(values in proptest::collection::vec(proptest::prelude::any::<u8>(), 1..32)) {
+        let writer = FrameWriter::initialize(tempfile::tempfile().unwrap()).unwrap();
+        let mut reader = writer.reader().unwrap();
+        for value in &values {
+            proptest::prop_assert!(writer.write(&frame(*value)).unwrap());
+        }
+        proptest::prop_assert_eq!(reader.poll().unwrap(), Some(frame(*values.last().unwrap())));
+        proptest::prop_assert_eq!(reader.poll().unwrap(), None);
+        writer.close().unwrap();
+        proptest::prop_assert_eq!(reader.poll().unwrap(), None);
+        proptest::prop_assert!(reader.closed());
+    }
+}

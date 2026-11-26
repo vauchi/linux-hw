@@ -117,8 +117,9 @@ test:camera:
     - job: lint:format
       optional: true
   script:
-    - cargo clippy --locked --all-targets --features camera -- -D warnings
-    - cargo test --locked --features camera
+    - cargo clippy --locked --all-targets --features camera,fake-camera -- -D warnings
+    - cargo test --locked --features camera,fake-camera
+    - cargo test --locked --no-default-features --features fake-camera
 
 security:audit:
   extends: [.rust-runner-readonly, .security-audit-job]

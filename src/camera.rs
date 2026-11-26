@@ -35,6 +35,37 @@ pub struct CameraSession {
 }
 
 impl CameraSession {
+    #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+    pub fn with_module(
+        module: crate::camera_modules::CameraModules,
+        runtime: Handle,
+        limits: InboxLimits,
+    ) -> Result<Self, ExecutorError> {
+        let native = move |request: Capture, events: EventSender| {
+            let module = module.clone();
+            Box::pin(async move {
+                let cancelled = request.cancelled.clone();
+                let outcome = tokio::task::spawn_blocking(move || {
+                    module.capture(request.preview_id, request.purpose, request.cancelled)
+                })
+                .await
+                .map_err(|_| HardwareFailure::Failed)?;
+                if cancelled.load(Ordering::SeqCst) {
+                    return Ok(());
+                }
+                match outcome {
+                    Ok(Some(event)) => send(events, event).await,
+                    Ok(None) => Ok(()),
+                    Err(error) => report_error(events, error).await,
+                }
+            }) as _
+        };
+        Ok(Self {
+            executor: Executor::new(native, &runtime, limits)?,
+            active: None,
+        })
+    }
+
     pub fn with_backend(
         backend: Arc<dyn CameraBackend>,
         runtime: Handle,

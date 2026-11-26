@@ -169,6 +169,11 @@ pub struct LumaFrame {
 /// handles are not).
 pub trait CameraFrames {
     fn next_luma(&mut self) -> Result<Option<LumaFrame>, String>;
+
+    #[cfg(feature = "qr-decode")]
+    fn preview_frame(&self) -> Option<crate::camera_frame::CameraFrame> {
+        None
+    }
 }
 
 /// The camera port: opens the device's stream, or names why it cannot.

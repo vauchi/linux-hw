@@ -110,6 +110,10 @@ impl Capture {
 }
 
 impl CameraFrames for Capture {
+    fn preview_frame(&self) -> Option<CameraFrame> {
+        self.latest.borrow().frame.clone()
+    }
+
     fn next_luma(&mut self) -> Result<Option<LumaFrame>, String> {
         let waiting = Instant::now();
         while !self.cancelled.load(Ordering::SeqCst) {

@@ -27,6 +27,12 @@ impl HostDevices {
             video_device: crate::PipeWireCamera::available(),
             ..devices
         };
+        #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+        let devices = Self {
+            video_device: crate::camera_modules::CameraModules::discover()
+                .is_some_and(|module| module.available()),
+            ..devices
+        };
         devices
     }
 
@@ -49,8 +55,11 @@ impl HostDevices {
         DeviceCapabilities {
             has_ble: cfg!(target_os = "linux") && self.bluetooth_adapter,
             has_nfc: cfg!(feature = "nfc") && self.nfc_reader,
-            has_camera: cfg!(any(feature = "camera", feature = "camera-preview"))
-                && self.video_device,
+            has_camera: cfg!(any(
+                feature = "camera",
+                feature = "camera-preview",
+                feature = "camera-modules"
+            )) && self.video_device,
             audio: if cfg!(feature = "audio") && self.sound_card {
                 AudioCapability::Full
             } else {

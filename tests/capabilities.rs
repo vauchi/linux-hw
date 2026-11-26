@@ -81,7 +81,11 @@ fn a_device_counts_only_when_its_port_is_built_in() {
     let expected = DeviceCapabilities {
         has_ble: cfg!(target_os = "linux"),
         has_nfc: cfg!(feature = "nfc"),
-        has_camera: cfg!(any(feature = "camera", feature = "camera-preview")),
+        has_camera: cfg!(any(
+            feature = "camera",
+            feature = "camera-preview",
+            feature = "camera-modules"
+        )),
         audio: if cfg!(feature = "audio") {
             AudioCapability::Full
         } else {

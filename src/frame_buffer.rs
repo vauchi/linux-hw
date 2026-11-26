@@ -126,6 +126,28 @@ impl FrameWriter {
         Ok(Self { file })
     }
 
+    /// Attach a helper to an initialized resource without resizing it.
+    pub fn attach(file: File) -> io::Result<Self> {
+        validate_file(&file)?;
+        file.lock()?;
+        let lock = Lock(&file);
+        let header = Header::read(&file)?;
+        if header.state != 1 || header.generation != 0 {
+            return Err(invalid());
+        }
+        header.write(&file)?;
+        drop(lock);
+        Ok(Self { file })
+    }
+
+    pub fn writer_fd(&self) -> io::Result<OwnedFd> {
+        File::options()
+            .read(true)
+            .write(true)
+            .open(format!("/proc/self/fd/{}", self.file.as_raw_fd()))
+            .map(Into::into)
+    }
+
     pub fn reader_fd(&self) -> io::Result<OwnedFd> {
         // flock belongs to the open file description; dup would share the writer's lock.
         File::open(format!("/proc/self/fd/{}", self.file.as_raw_fd())).map(Into::into)

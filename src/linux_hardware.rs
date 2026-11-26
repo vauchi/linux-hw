@@ -65,6 +65,8 @@ pub struct Backends {
     pub audio: Option<Arc<dyn AudioBackend>>,
     #[cfg(feature = "qr-decode")]
     pub camera: Option<Arc<dyn CameraBackend>>,
+    #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+    pub camera_module: Option<crate::camera_modules::CameraModules>,
     pub direct: Option<Arc<dyn DirectBackend>>,
     pub notifier: Option<Arc<dyn Notifier>>,
 }
@@ -135,6 +137,14 @@ impl Backends {
             backends
         };
         let _ = claimed;
+        #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+        let backends = Self {
+            camera_module: claimed
+                .has_camera
+                .then(crate::camera_modules::CameraModules::discover)
+                .flatten(),
+            ..backends
+        };
         backends
     }
 }
@@ -142,6 +152,8 @@ impl Backends {
 /// What an app holds: linux-hw's runtime, the sessions on it and the
 /// capability report, behind blocking calls so the app needs no runtime.
 pub struct LinuxHardware {
+    #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+    frame_directory: Option<crate::frame_directory::FrameDirectory>,
     #[cfg(all(feature = "camera-preview", target_os = "linux"))]
     preview_directory: Option<crate::preview_source::PreviewDirectory>,
     shell: HardwareShell,
@@ -160,6 +172,8 @@ impl LinuxHardware {
             .build()
             .expect("a timer-only runtime opens no I/O driver and starts no worker threads");
         Self {
+            #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+            frame_directory: None,
             #[cfg(all(feature = "camera-preview", target_os = "linux"))]
             preview_directory: None,
             shell: HardwareShell::new(),
@@ -186,8 +200,15 @@ impl LinuxHardware {
             .camera
             .as_ref()
             .and_then(|camera| camera.preview_directory());
+        #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+        let frame_directory = backends
+            .camera_module
+            .as_ref()
+            .map(|module| module.directory());
         let shell = attach(backends, runtime.handle())?;
         Ok(Self {
+            #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+            frame_directory,
             #[cfg(all(feature = "camera-preview", target_os = "linux"))]
             preview_directory,
             shell,
@@ -200,6 +221,11 @@ impl LinuxHardware {
     /// The `HardwareCapabilitiesReported` the app sends Core at start.
     pub fn report(&self) -> Event {
         self.report.clone()
+    }
+
+    #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+    pub fn frame_directory(&self) -> Option<crate::frame_directory::FrameDirectory> {
+        self.frame_directory.clone()
     }
 
     #[cfg(all(feature = "camera-preview", target_os = "linux"))]
@@ -296,6 +322,14 @@ fn attach(backends: Backends, runtime: &Handle) -> Result<HardwareShell, Executo
     if let Some(camera) = backends.camera {
         shell = shell.with_camera(CameraSession::with_backend(
             camera,
+            runtime.clone(),
+            CAMERA_LIMITS,
+        )?);
+    }
+    #[cfg(all(target_os = "linux", feature = "camera-modules"))]
+    if let Some(module) = backends.camera_module {
+        shell = shell.with_camera(CameraSession::with_module(
+            module,
             runtime.clone(),
             CAMERA_LIMITS,
         )?);

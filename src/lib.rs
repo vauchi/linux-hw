@@ -13,6 +13,10 @@ mod bluez;
 mod camera;
 #[cfg(feature = "qr-decode")]
 pub mod camera_frame;
+#[cfg(all(target_os = "linux", feature = "camera-helper"))]
+pub mod camera_helper;
+#[cfg(all(target_os = "linux", feature = "camera-modules"))]
+pub mod camera_modules;
 #[cfg(all(feature = "camera-preview", target_os = "linux"))]
 pub mod camera_portal;
 mod capabilities;
@@ -27,6 +31,8 @@ mod executor;
 pub mod fake_bluez;
 #[cfg(all(target_os = "linux", feature = "qr-decode"))]
 pub mod frame_buffer;
+#[cfg(all(target_os = "linux", feature = "camera-modules"))]
+pub mod frame_directory;
 mod host;
 mod linux_hardware;
 mod nfc;
