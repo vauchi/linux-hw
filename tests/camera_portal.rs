@@ -5,6 +5,7 @@
 
 mod portal_fixture;
 
+use futures_util::StreamExt;
 use portal_fixture::{FakePortal, Response};
 use std::{
     io::{Read, Write},
@@ -16,6 +17,50 @@ use std::{
 };
 use vauchi_linux_hw::camera_portal::{CameraPortal, PortalError};
 use vauchi_linux_hw::{CameraBackend, PipeWireCamera};
+use zbus::{Connection, Message, MessageStream, OwnedVariant};
+
+async fn bus_barrier(connection: &Connection) {
+    connection
+        .call_method(
+            Some("org.freedesktop.DBus"),
+            "/org/freedesktop/DBus",
+            Some("org.freedesktop.DBus"),
+            "GetId",
+            &(),
+        )
+        .await
+        .unwrap();
+}
+
+// @internal — deliver the first request before the mock handler is scheduled.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_portal_request_is_retained_before_the_handler_first_runs() {
+    let (fixture, start) = FakePortal::start_paused(Response::Grant).await;
+    let mut replies = MessageStream::from(&fixture.client);
+    let request = Message::method_call("/org/freedesktop/portal/desktop", "Get")
+        .destination("org.freedesktop.portal.Desktop")
+        .interface("org.freedesktop.DBus.Properties")
+        .build(&("org.freedesktop.portal.Camera", "IsCameraPresent"))
+        .unwrap();
+    let serial = request.primary_header().serial_num();
+    fixture.client.send(&request).await.unwrap();
+    // FIFO on the broker and then its server connection proves request delivery.
+    bus_barrier(&fixture.client).await;
+    bus_barrier(&fixture.server).await;
+    start.send(()).unwrap();
+    let reply = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            let reply = replies.next().await.unwrap().unwrap();
+            if reply.header().reply_serial() == Some(serial) {
+                return reply;
+            }
+        }
+    })
+    .await
+    .expect("the portal fixture dropped a request sent before its task was scheduled");
+    let value: OwnedVariant = reply.body().deserialize().unwrap();
+    assert!(bool::try_from(value).unwrap());
+}
 
 // @internal
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

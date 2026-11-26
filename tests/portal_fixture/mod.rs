@@ -33,6 +33,7 @@ pub enum Response {
 
 pub struct FakePortal {
     pub client: Connection,
+    pub server: Connection,
     pub peers: Arc<Mutex<Vec<UnixStream>>>,
     pub accesses: Arc<AtomicUsize>,
     pub closes: Arc<AtomicUsize>,
@@ -43,6 +44,18 @@ pub struct FakePortal {
 
 impl FakePortal {
     pub async fn start(response: Response) -> Self {
+        Self::start_inner(response, None).await
+    }
+
+    pub async fn start_paused(response: Response) -> (Self, tokio::sync::oneshot::Sender<()>) {
+        let (start, gate) = tokio::sync::oneshot::channel();
+        (Self::start_inner(response, Some(gate)).await, start)
+    }
+
+    async fn start_inner(
+        response: Response,
+        gate: Option<tokio::sync::oneshot::Receiver<()>>,
+    ) -> Self {
         let mut bus = Command::new("dbus-daemon")
             .args(["--session", "--nofork", "--print-address=1"])
             .stdin(Stdio::null())
@@ -73,8 +86,12 @@ impl FakePortal {
             closes.clone(),
             opened.clone(),
         );
+        let server = service.clone();
+        let mut messages = MessageStream::from(&service);
         let task = tokio::spawn(async move {
-            let mut messages = MessageStream::from(&service);
+            if let Some(gate) = gate {
+                gate.await.unwrap();
+            }
             while let Some(Ok(message)) = messages.next().await {
                 let header = message.header();
                 if header.message_type() != zbus::message::Type::MethodCall {
@@ -144,6 +161,7 @@ impl FakePortal {
         });
         Self {
             client,
+            server,
             peers,
             accesses,
             closes,
