@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod access;
+
 use futures_util::StreamExt;
 use std::{
-    collections::HashMap,
     io::{BufRead, BufReader},
     os::unix::net::UnixStream,
     process::{Child, Command, Stdio},
@@ -13,7 +14,7 @@ use std::{
     },
 };
 use tokio::sync::Notify;
-use zbus::{Connection, MessageStream, OwnedObjectPath, OwnedVariant, Variant};
+use zbus::{Connection, MessageStream, Variant};
 
 const SERVICE: &str = "org.freedesktop.portal.Desktop";
 const CAMERA: &str = "org.freedesktop.portal.Camera";
@@ -108,53 +109,7 @@ impl FakePortal {
                         }
                     }
                     "AccessCamera" => {
-                        state.1.fetch_add(1, Ordering::SeqCst);
-                        if matches!(response, Response::HoldReply) {
-                            state.3.notify_one();
-                            continue;
-                        }
-                        let options: HashMap<String, OwnedVariant> =
-                            message.body().deserialize().unwrap();
-                        let token =
-                            String::try_from(options["handle_token"].try_clone().unwrap()).unwrap();
-                        let sender = header.sender().unwrap().as_str().to_owned();
-                        let path = format!(
-                            "/org/freedesktop/portal/desktop/request/{}/{}",
-                            sender.trim_start_matches(':').replace('.', "_"),
-                            token
-                        );
-                        let path = OwnedObjectPath::try_from(path).unwrap();
-                        if matches!(response, Response::Malformed) {
-                            service
-                                .emit_signal(
-                                    Some(sender.as_str()),
-                                    path.as_str(),
-                                    "org.freedesktop.portal.Request",
-                                    "Response",
-                                    &"invalid",
-                                )
-                                .await
-                                .unwrap();
-                        } else if !matches!(response, Response::Wait) {
-                            let code =
-                                if matches!(response, Response::Grant | Response::NativeGrant) {
-                                    0u32
-                                } else {
-                                    1u32
-                                };
-                            service
-                                .emit_signal(
-                                    Some(sender.as_str()),
-                                    path.as_str(),
-                                    "org.freedesktop.portal.Request",
-                                    "Response",
-                                    &(code, HashMap::<String, OwnedVariant>::new()),
-                                )
-                                .await
-                                .unwrap();
-                        }
-                        service.reply(&header, &path).await.unwrap();
-                        state.3.notify_one();
+                        access::respond(&service, &message, response, &state.1, &state.3).await;
                     }
                     "OpenPipeWireRemote" => {
                         let socket = if matches!(response, Response::NativeGrant) {

@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 
 mod resolver;
 pub use resolver::PreviewResolver;
+mod lease;
+pub use lease::PreviewLease;
 
 pub type RemoteOpener = Arc<dyn Fn() -> Result<OwnedFd, String> + Send + Sync>;
 
@@ -45,11 +47,6 @@ struct State {
 /// One current capture per hardware instance, isolated from other apps.
 #[derive(Clone, Default)]
 pub struct PreviewDirectory(Arc<Mutex<State>>);
-
-pub struct PreviewLease {
-    directory: PreviewDirectory,
-    generation: u64,
-}
 
 impl PreviewDirectory {
     pub fn publish(
@@ -112,18 +109,5 @@ impl PreviewDirectory {
             serial: entry.serial,
             remote_fd,
         }))
-    }
-}
-
-impl Drop for PreviewLease {
-    fn drop(&mut self) {
-        if let Ok(mut state) = self.directory.0.lock()
-            && state
-                .active
-                .as_ref()
-                .is_some_and(|entry| entry.generation == self.generation)
-        {
-            state.active = None;
-        }
     }
 }
