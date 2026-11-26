@@ -24,6 +24,7 @@ const MAX_PREVIEW_ID: usize = 128;
 
 #[derive(Clone)]
 struct Capture {
+    preview_id: String,
     purpose: CameraPurpose,
     cancelled: Arc<AtomicBool>,
 }
@@ -43,7 +44,9 @@ impl CameraSession {
             let backend = backend.clone();
             Box::pin(async move {
                 match request.purpose {
-                    CameraPurpose::QrScan => scan(backend, request.cancelled, events).await,
+                    CameraPurpose::QrScan => {
+                        scan(backend, request.preview_id, request.cancelled, events).await
+                    }
                     other => {
                         report_error(
                             events,
@@ -73,6 +76,7 @@ impl CameraSession {
         self.cancel_active();
         let cancelled = Arc::new(AtomicBool::new(false));
         self.executor.start(Capture {
+            preview_id: preview_id.clone(),
             purpose,
             cancelled: cancelled.clone(),
         })?;
@@ -117,12 +121,13 @@ impl Drop for CameraSession {
 
 async fn scan(
     backend: Arc<dyn CameraBackend>,
+    preview_id: String,
     cancelled: Arc<AtomicBool>,
     events: EventSender,
 ) -> Result<(), HardwareFailure> {
     let stop = cancelled.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<Option<String>, String> {
-        let mut frames = backend.open(stop.clone())?;
+        let mut frames = backend.open_preview(&preview_id, stop.clone())?;
         while !stop.load(Ordering::SeqCst) {
             let Some(frame) = frames.next_luma()? else {
                 return Ok(None);

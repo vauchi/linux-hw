@@ -177,6 +177,16 @@ pub trait CameraBackend: Send + Sync + 'static {
         &self,
         cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<Box<dyn CameraFrames>, String>;
+
+    /// Open capture and its matching hardware-owned preview stream.
+    /// Capture-only ports retain their existing behavior.
+    fn open_preview(
+        &self,
+        _preview_id: &str,
+        cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<Box<dyn CameraFrames>, String> {
+        self.open(cancelled)
+    }
 }
 
 /// The direct-send port: one framed exchange with the peer at Core's
