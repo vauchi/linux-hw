@@ -13,6 +13,8 @@ mod bluez;
 mod camera;
 #[cfg(feature = "qr-decode")]
 pub mod camera_frame;
+#[cfg(all(feature = "camera-preview", target_os = "linux"))]
+pub mod camera_portal;
 mod capabilities;
 mod central;
 mod delivery;
@@ -34,6 +36,8 @@ mod pcsc;
 #[cfg(all(feature = "camera-preview", target_os = "linux"))]
 mod pipewire_camera;
 mod ports;
+#[cfg(all(feature = "camera-preview", target_os = "linux"))]
+pub mod preview_source;
 /// The QR decoder (ADR-077: decoding is hardware-shell code), behind `qr-decode`.
 #[cfg(feature = "qr-decode")]
 pub mod qr;
