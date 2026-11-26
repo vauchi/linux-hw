@@ -67,7 +67,7 @@ impl CameraFrame {
             let start = offset + row * stride;
             let pixels = &bytes[start..start + row_bytes];
             if format == PixelFormat::Yuy2 {
-                for pair in pixels.chunks_exact(4) {
+                for pair in pixels.as_chunks::<4>().0 {
                     rgba.extend_from_slice(&yuv(pair[0], pair[1], pair[3]));
                     rgba.extend_from_slice(&yuv(pair[2], pair[1], pair[3]));
                 }
@@ -104,7 +104,9 @@ impl CameraFrame {
     pub fn luma(&self) -> Vec<u8> {
         let rgb: Vec<u8> = self
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|p| p[..3].iter().copied())
             .collect();
         rgb_to_luma(&rgb)
