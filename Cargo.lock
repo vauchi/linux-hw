@@ -1791,8 +1791,8 @@ dependencies = [
 
 [[package]]
 name = "vauchi-contract"
-version = "0.101.0"
-source = "git+https://gitlab.com/vauchi/contract.git?tag=v0.101.0#b73800c00602fef938445f0e08e70d048929bee6"
+version = "0.102.0"
+source = "git+https://gitlab.com/vauchi/contract.git?tag=v0.102.0#dd4bb9199067ad9a971be47a1551ea18172cca63"
 dependencies = [
  "serde",
  "serde_json",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "vauchi-linux-hw"
-version = "0.105.1"
+version = "0.106.0"
 dependencies = [
  "alsa",
  "futures-util",
